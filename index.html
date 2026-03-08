@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Financiero — Banco de Chile</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  // Initialize pdf.js worker immediately after load
+  if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -85,21 +93,6 @@
   .version-desc { font-size:12px; color:var(--text); opacity:0.7; }
   .changelog-btn { font-size:11px; color:var(--accent); cursor:pointer; background:none; border:1px solid rgba(59,130,246,0.3); border-radius:6px; padding:4px 10px; font-family:'DM Sans',sans-serif; transition:all 0.2s; }
   .changelog-btn:hover { background:rgba(59,130,246,0.12); }
-
-  /* Drive Sync */
-  .drive-btn { display:inline-flex; align-items:center; gap:8px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); color:#34d399; padding:8px 18px; border-radius:8px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s; }
-  .drive-btn:hover { background:rgba(16,185,129,0.2); }
-  .drive-btn.connecting { opacity:0.7; cursor:wait; }
-  .drive-status { display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:5px 12px; border-radius:100px; font-weight:500; }
-  .drive-status.connected { background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.25); color:#34d399; }
-  .drive-status.disconnected { background:rgba(100,116,139,0.1); border:1px solid rgba(100,116,139,0.25); color:var(--muted); }
-  .drive-status.syncing { background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.25); color:var(--accent); }
-  .drive-status.error { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.25); color:#f87171; }
-  .drive-dot { width:7px; height:7px; border-radius:50%; background:currentColor; }
-  .drive-dot.pulse { animation: drivePulse 1.5s ease-in-out infinite; }
-  @keyframes drivePulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-  .sync-banner { background:rgba(16,185,129,0.07); border:1px solid rgba(16,185,129,0.2); border-radius:10px; padding:10px 16px; margin-bottom:16px; display:none; align-items:center; gap:10px; font-size:13px; color:#34d399; }
-  .sync-banner.show { display:flex; }
 
   /* Modal */
   .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; display:none; align-items:center; justify-content:center; padding:20px; }
@@ -349,6 +342,112 @@
     .version-banner { flex-direction:column; align-items:flex-start; }
     .cat-rule-row { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; }
   }
+
+  /* ── Debug Panel ─────────────────────────────────────────────────────────── */
+  #debug-panel {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    max-height: 40vh;
+    background: #0a0a0a;
+    border-top: 2px solid #f59e0b;
+    z-index: 9999;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+  }
+  #debug-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 12px;
+    background: #1a1200;
+    border-bottom: 1px solid #f59e0b44;
+    cursor: pointer;
+  }
+  #debug-header span { color: #f59e0b; font-weight: 700; font-size: 12px; }
+  #debug-header .debug-actions { display: flex; gap: 8px; }
+  #debug-header button {
+    background: none; border: 1px solid #f59e0b55; color: #f59e0b;
+    padding: 2px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;
+    font-family: monospace;
+  }
+  #debug-header button:hover { background: #f59e0b22; }
+  #debug-log {
+    overflow-y: auto;
+    max-height: calc(40vh - 36px);
+    padding: 8px 12px;
+    color: #a3e635;
+  }
+  #debug-log .log-line { padding: 1px 0; border-bottom: 1px solid #ffffff08; }
+  #debug-log .log-error { color: #f87171; }
+  #debug-log .log-warn  { color: #fbbf24; }
+  #debug-log .log-info  { color: #60a5fa; }
+  #debug-toggle-btn {
+    position: fixed; bottom: 12px; right: 12px;
+    background: #1a1200; border: 1px solid #f59e0b88;
+    color: #f59e0b; font-size: 11px; padding: 5px 10px;
+    border-radius: 6px; cursor: pointer; z-index: 9998;
+    font-family: monospace; display: none;
+  }
+
+  /* ── Google Drive Sync ───────────────────────────────────────────────────── */
+  .btn-drive {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(52,168,83,0.12); border: 1px solid rgba(52,168,83,0.35);
+    color: #4ade80; padding: 8px 18px; border-radius: 8px;
+    font-family: 'DM Sans',sans-serif; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px;
+  }
+  .btn-drive:hover { background: rgba(52,168,83,0.22); transform: translateY(-1px); }
+  .btn-drive:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-drive.syncing { animation: pulse-green 1.2s ease-in-out infinite; }
+  @keyframes pulse-green {
+    0%,100% { box-shadow: 0 0 0 0 rgba(74,222,128,0.3); }
+    50%      { box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+  }
+
+  /* Drive modal */
+  #drive-modal .modal-box { max-width: 580px; width: 100%; }
+  .drive-file-list { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .drive-file-item {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px;
+  }
+  .drive-file-icon { font-size: 20px; flex-shrink: 0; }
+  .drive-file-info { flex: 1; min-width: 0; }
+  .drive-file-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .drive-file-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .drive-file-status {
+    flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 3px 10px;
+    border-radius: 100px; letter-spacing: 0.4px;
+  }
+  .status-pending  { background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
+  .status-ok       { background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid rgba(74,222,128,0.3); }
+  .status-password { background: rgba(251,113,133,0.15); color: #f87171; border: 1px solid rgba(251,113,133,0.3); }
+  .status-error    { background: rgba(251,113,133,0.15); color: #f87171; border: 1px solid rgba(251,113,133,0.3); }
+  .status-moving   { background: rgba(96,165,250,0.15); color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); }
+  .drive-summary {
+    margin-top: 16px; padding: 12px 16px; background: var(--surface2);
+    border-radius: 10px; border: 1px solid var(--border);
+    font-size: 13px; color: var(--muted); line-height: 1.6;
+  }
+  .drive-summary strong { color: var(--text); }
+  .drive-progress {
+    margin-top: 8px; height: 4px; background: var(--border); border-radius: 4px; overflow: hidden;
+  }
+  .drive-progress-bar {
+    height: 100%; background: linear-gradient(90deg, #4ade80, #3b82f6);
+    border-radius: 4px; transition: width 0.4s ease;
+  }
+  .drive-connect-area { text-align: center; padding: 24px 0; }
+  .drive-connect-area p { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
+  .btn-drive-connect {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: #fff; color: #444; padding: 10px 20px; border-radius: 8px;
+    font-family: 'DM Sans',sans-serif; font-size: 14px; font-weight: 600;
+    cursor: pointer; border: none; transition: all 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .btn-drive-connect:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+
 </style>
 </head>
 <body>
@@ -357,9 +456,9 @@
   <!-- Version Banner -->
   <div class="version-banner">
     <div class="v-left">
-      <span class="version-tag">v2.0.0</span>
+      <span class="version-tag">v2.3.0</span>
       <span class="version-date">Marzo 2026</span>
-      <span class="version-desc">Integración Google Drive · Procesamiento automático de cartolas</span>
+      <span class="version-desc">Sincronización Drive · Soporte PDF/xlsx · Categorías · Comparativa multi-mes</span>
     </div>
     <button class="changelog-btn" onclick="document.getElementById('changelog-modal').classList.add('open')">
       📋 Ver historial de versiones
@@ -372,19 +471,14 @@
       <h2>📋 Historial de Versiones</h2>
 
       <div class="changelog-entry">
-        <div class="cv"><span class="vtag">v2.0.0</span><span class="vdate">Marzo 2026</span></div>
+        <div class="cv"><span class="vtag">v2.3.0</span><span class="vdate">Marzo 2026</span></div>
         <ul>
-          <li>Integración Google Drive OAuth 2.0 (carpeta Dashboard_Finanzas)</li>
-          <li>Detección automática de cartolas nuevas en Drive al abrir el dashboard</li>
-          <li>Procesamiento único: cada cartola se ingesta una sola vez a localStorage</li>
-          <li>Registro de archivos procesados por nombre (no se reprocesa al reabrir)</li>
-          <li>Indicador de estado de sincronización en el header</li>
-          <li>Fallback a carga manual si Drive no está conectado</li>
+          <li>Fix: soporte para nuevo formato xlsx de Banco de Chile (DD/MM/YYYY, columna B)</li>
+          <li>Parser dual: detecta automáticamente formato antiguo vs nuevo</li>
         </ul>
       </div>
-
       <div class="changelog-entry">
-        <div class="cv"><span class="vtag" style="background:#475569">v1.3.0</span><span class="vdate">Marzo 2026</span></div>
+        <div class="cv"><span class="vtag">v2.1.0</span><span class="vdate">Marzo 2026</span></div>
         <ul>
           <li>Categorías editables por el usuario (reglas de texto personalizadas)</li>
           <li>Persistencia en localStorage: los datos sobreviven al recargar la página</li>
@@ -461,10 +555,6 @@
       <p>Dashboard · Banco de Chile</p>
     </div>
     <div class="header-actions">
-      <div id="drive-status-indicator" class="drive-status disconnected" style="cursor:pointer" onclick="handleDriveClick()">
-        <div class="drive-dot"></div>
-        <span id="drive-status-text">Google Drive</span>
-      </div>
       <button class="upload-more-btn" id="upload-more-btn" style="display:none" onclick="resetUpload()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         Subir otro mes
@@ -476,14 +566,13 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
         Exportar PDF
       </button>
+      <button class="btn-drive" id="btn-drive" onclick="openDriveSync()">
+        <svg width="14" height="14" viewBox="0 0 87.3 78" fill="currentColor"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3L27.5 53H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="M43.65 25L29.9 1.2C28.55.4 27 0 25.45 0c-1.55 0-3.1.4-4.45 1.2L6.6 25z" fill="#00ac47"/><path d="M80.7 53H53l13.75 23.8c1.35-.8 2.5-1.9 3.3-3.3l3.85-6.65c.8-1.4 1.2-2.95 1.2-4.5.0-1.55-.4-3.1-1.2-4.5z" fill="#ea4335"/><path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.95 0H33.55C32 0 30.45.4 29.1 1.2z" fill="#00832d"/><path d="M59.4 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.45 1.2h50.6c1.55 0 3.1-.4 4.45-1.2z" fill="#2684fc"/><path d="M43.65 25L57.4 48.85 71.2 25H43.65z" fill="#ffba00"/></svg>
+        Sincronizar Drive
+      </button>
       <div class="badge"><div class="dot"></div> Procesamiento local</div>
     </div>
   </header>
-
-  <div id="sync-banner" class="sync-banner">
-    <span>☁️</span>
-    <span id="sync-banner-msg">Revisando cartolas nuevas en Google Drive…</span>
-  </div>
 
   <div id="error-box" class="error-box"></div>
   <div id="persist-banner" class="persist-banner" style="display:none">
@@ -501,18 +590,19 @@
       <line x1="12" y1="3" x2="12" y2="15"/>
     </svg>
     <h2>Sube tu cartola del Banco de Chile</h2>
-    <p>Arrastra el archivo .xlsx aquí o haz clic para seleccionarlo</p>
+    <p>Arrastra el archivo .xlsx o .pdf aquí o haz clic para seleccionarlo</p>
     <button class="btn-upload" onclick="event.stopPropagation();document.getElementById('file-input').click()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       Seleccionar archivo
     </button>
     <div class="file-chips">
-      <span class="chip">📄 .xlsx</span>
+      <span class="chip">📊 .xlsx</span>
+      <span class="chip">📄 .pdf</span>
       <span class="chip">🔒 100% local, sin subir datos</span>
       <span class="chip">⚡ Procesamiento instantáneo</span>
     </div>
   </div>
-  <input type="file" id="file-input" accept=".xlsx,.xls" onchange="handleFile(event)">
+  <input type="file" id="file-input" accept=".xlsx,.xls,.pdf" onchange="handleFile(event)">
 
   <!-- Loading -->
   <div id="loading">
@@ -600,27 +690,18 @@
 
   <footer>
     <div>Todos los datos se procesan localmente en tu navegador. Ningún dato es enviado a servidores externos.</div>
-    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.0.0 · Marzo 2026</div>
+    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v1.3.0 · Marzo 2026</div>
   </footer>
 
 </div>
 
 <script>
 // ─── Constants ─────────────────────────────────────────────────────────────
-const APP_VERSION = 'v2.0.0';
+const APP_VERSION = 'v1.3.0';
 const APP_DATE = 'Marzo 2026';
 const STORAGE_KEY = 'finanzas_bch_data';
 const STORAGE_CATS_KEY = 'finanzas_bch_cats';
-const STORAGE_PROCESSED_KEY = 'finanzas_bch_processed_files';
 const VIEW_ALL = '__ALL__';
-
-// ─── Google Drive Config ────────────────────────────────────────────────────
-const DRIVE_CLIENT_ID = '1012770450096-v9t9s639b86bsr04hldjgbh0j2q5v944.apps.googleusercontent.com';
-const DRIVE_FOLDER_ID = '1Rzfn9GGRhXi-EAKAzzgvRNhcd1Bi2WS9';
-const DRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
-
-let driveAccessToken = null;
-let driveConnected = false;
 
 // ─── Default category rules ────────────────────────────────────────────────
 const DEFAULT_CAT_RULES = [
@@ -728,227 +809,6 @@ function categorize(desc) {
   return 'Otros';
 }
 
-// ─── Google Drive Integration ───────────────────────────────────────────────
-
-function setDriveStatus(status, text) {
-  const el = document.getElementById('drive-status-indicator');
-  const dot = el.querySelector('.drive-dot');
-  const textEl = document.getElementById('drive-status-text');
-  el.className = 'drive-status ' + status;
-  dot.className = 'drive-dot' + (status === 'syncing' ? ' pulse' : '');
-  textEl.textContent = text;
-}
-
-function showSyncBanner(msg) {
-  const b = document.getElementById('sync-banner');
-  document.getElementById('sync-banner-msg').textContent = msg;
-  b.classList.add('show');
-}
-
-function hideSyncBanner() {
-  document.getElementById('sync-banner').classList.remove('show');
-}
-
-function getProcessedFiles() {
-  try {
-    const raw = localStorage.getItem(STORAGE_PROCESSED_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch(e) { return []; }
-}
-
-function markFileAsProcessed(fileName) {
-  const list = getProcessedFiles();
-  if (!list.includes(fileName)) {
-    list.push(fileName);
-    localStorage.setItem(STORAGE_PROCESSED_KEY, JSON.stringify(list));
-  }
-}
-
-function handleDriveClick() {
-  if (driveConnected) {
-    // Ya conectado: revisar manualmente
-    checkDriveForNewFiles();
-  } else {
-    // No conectado: iniciar OAuth
-    connectToDrive();
-  }
-}
-
-function connectToDrive() {
-  setDriveStatus('syncing', 'Conectando…');
-  const redirectUri = window.location.href.split('?')[0].split('#')[0];
-  const params = new URLSearchParams({
-    client_id: DRIVE_CLIENT_ID,
-    redirect_uri: redirectUri,
-    response_type: 'token',
-    scope: DRIVE_SCOPES,
-    prompt: 'consent'
-  });
-  window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
-}
-
-function handleOAuthCallback() {
-  const hash = window.location.hash;
-  if (!hash.includes('access_token')) return false;
-  const params = new URLSearchParams(hash.substring(1));
-  const token = params.get('access_token');
-  if (!token) return false;
-  driveAccessToken = token;
-  driveConnected = true;
-  // Limpiar hash de la URL
-  history.replaceState(null, '', window.location.pathname);
-  return true;
-}
-
-async function checkDriveForNewFiles() {
-  if (!driveAccessToken) return;
-  setDriveStatus('syncing', 'Revisando Drive…');
-  showSyncBanner('☁️ Revisando cartolas nuevas en Google Drive…');
-
-  try {
-    // Listar archivos PDF en la carpeta Dashboard_Finanzas
-    const url = `https://www.googleapis.com/drive/v3/files?q='${DRIVE_FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,createdTime)&orderBy=createdTime`;
-    const res = await fetch(url, {
-      headers: { Authorization: 'Bearer ' + driveAccessToken }
-    });
-
-    if (res.status === 401) {
-      driveConnected = false;
-      driveAccessToken = null;
-      setDriveStatus('disconnected', 'Google Drive');
-      hideSyncBanner();
-      return;
-    }
-
-    const data = await res.json();
-    const files = (data.files || []).filter(f =>
-      f.name.toLowerCase().includes('cartola') ||
-      f.name.toLowerCase().endsWith('.pdf') ||
-      f.name.toLowerCase().endsWith('.xlsx')
-    );
-
-    const processed = getProcessedFiles();
-    const newFiles = files.filter(f => !processed.includes(f.name));
-
-    if (newFiles.length === 0) {
-      setDriveStatus('connected', 'Drive · Al día ✓');
-      hideSyncBanner();
-      setTimeout(() => setDriveStatus('connected', 'Google Drive ✓'), 3000);
-      return;
-    }
-
-    showSyncBanner(`☁️ Encontradas ${newFiles.length} cartola(s) nueva(s). Procesando…`);
-    setDriveStatus('syncing', `Procesando ${newFiles.length} archivo(s)…`);
-
-    let processed_count = 0;
-    for (const file of newFiles) {
-      try {
-        await processFileFromDrive(file);
-        markFileAsProcessed(file.name);
-        processed_count++;
-      } catch(err) {
-        console.warn('Error procesando archivo de Drive:', file.name, err);
-      }
-    }
-
-    if (processed_count > 0) {
-      saveToStorage();
-      renderDashboard();
-      document.getElementById('upload-zone').style.display = 'none';
-      document.getElementById('dashboard').style.display = 'block';
-      document.getElementById('upload-more-btn').style.display = 'flex';
-      document.getElementById('btn-pdf').style.display = 'flex';
-      document.getElementById('btn-cats').style.display = 'flex';
-
-      // Actualizar banner de persistencia
-      const monthCount = Object.keys(state.months).length;
-      document.getElementById('persist-banner').style.display = 'flex';
-      document.getElementById('persist-msg').textContent =
-        `☁️ ${processed_count} cartola(s) importada(s) desde Drive. Total: ${monthCount} mes(es) (${Object.keys(state.months).join(', ')}).`;
-    }
-
-    setDriveStatus('connected', 'Drive · Sincronizado ✓');
-    hideSyncBanner();
-    setTimeout(() => setDriveStatus('connected', 'Google Drive ✓'), 4000);
-
-  } catch(err) {
-    console.error('Error accediendo a Drive:', err);
-    setDriveStatus('error', 'Error Drive');
-    hideSyncBanner();
-  }
-}
-
-async function processFileFromDrive(file) {
-  // Descargar el archivo desde Drive
-  const res = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
-    { headers: { Authorization: 'Bearer ' + driveAccessToken } }
-  );
-
-  if (!res.ok) throw new Error(`No se pudo descargar ${file.name}`);
-
-  const buffer = await res.arrayBuffer();
-  const fileName = file.name.toLowerCase();
-
-  if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-    // Procesar como Excel
-    processXLSXBuffer(buffer);
-  } else if (fileName.endsWith('.pdf')) {
-    // Los PDF de Banco de Chile son en realidad Excel renombrados — intentar parsear como XLSX
-    try {
-      processXLSXBuffer(buffer);
-    } catch(e) {
-      throw new Error(`Archivo ${file.name} es PDF nativo — no se puede procesar automáticamente.`);
-    }
-  }
-}
-
-function processXLSXBuffer(buffer) {
-  const data = new Uint8Array(buffer);
-  const wb = XLSX.read(data, { type: 'array' });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
-
-  const transactions = [];
-  let saldoInicial = 0, saldoFinal = 0, nombreCuenta = '';
-
-  for (const row of rows) {
-    const cel0 = String(row[0] || '').trim();
-    const cel1 = String(row[1] || '').trim();
-
-    if (cel0.includes('Sr') && row[1]) nombreCuenta = String(row[1]).trim();
-    if (cel1 === 'SALDO INICIAL' && row[5]) saldoInicial = parseFloat(row[5]) || 0;
-    if (cel1 === 'SALDO FINAL' && row[5]) saldoFinal = parseFloat(row[5]) || 0;
-
-    if (/^\d{2}\/\d{2}$/.test(cel0) && cel1 && !['SALDO INICIAL','SALDO FINAL'].includes(cel1)) {
-      const cargo = parseFloat(row[3]) || 0;
-      const abono = parseFloat(row[4]) || 0;
-      const parts = cel0.split('/');
-      transactions.push({
-        fecha: cel0,
-        dia: parseInt(parts[0]),
-        mes: parseInt(parts[1]),
-        descripcion: cel1,
-        canal: String(row[2] || ''),
-        cargo, abono,
-        categoria: categorize(cel1)
-      });
-    }
-  }
-
-  if (transactions.length === 0) {
-    throw new Error('No se encontraron transacciones en el archivo.');
-  }
-
-  const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const firstMes = transactions[0].mes;
-  const year = new Date().getFullYear();
-  const monthLabel = `${meses[firstMes]} ${year}`;
-
-  state.months[monthLabel] = { transactions, saldoInicial, saldoFinal, nombreCuenta };
-  state.activeMonth = monthLabel;
-}
-
 // ─── Persistence ───────────────────────────────────────────────────────────
 function saveToStorage() {
   try {
@@ -998,10 +858,9 @@ function loadCatRulesFromStorage() {
 }
 
 function clearSavedData() {
-  if (!confirm('¿Limpiar todos los datos guardados? Esta acción no se puede deshacer.\n\nNota: Los archivos en Google Drive no se eliminarán, pero serán reprocesados la próxima vez que se conecte Drive.')) return;
+  if (!confirm('¿Limpiar todos los datos guardados? Esta acción no se puede deshacer.')) return;
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(STORAGE_CATS_KEY);
-  localStorage.removeItem(STORAGE_PROCESSED_KEY);
   location.reload();
 }
 
@@ -1105,6 +964,11 @@ function processFile(file) {
   document.getElementById('upload-zone').style.display = 'none';
   document.getElementById('loading').style.display = 'block';
 
+  if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
+    processPDFFile(file);
+    return;
+  }
+
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
@@ -1116,28 +980,76 @@ function processFile(file) {
       const transactions = [];
       let saldoInicial = 0, saldoFinal = 0, nombreCuenta = '';
 
+      // ── Detectar formato ──────────────────────────────────────────────────────
+      // Ambos formatos tienen la fecha en row[0], pero con distinto patrón:
+      //   Antiguo: DD/MM          (col A, dim desde A)
+      //   Nuevo:   DD/MM/YYYY     (col B, dim desde B → SheetJS normaliza a índice 0)
+      const dateRegexNew = /^\d{2}\/\d{2}\/\d{4}$/;
+      const dateRegexOld = /^\d{2}\/\d{2}$/;
+
+      debugLog('=== INICIO PARSING XLSX ===');
+      debugLog('Total filas leídas: ' + rows.length);
+      if (rows.length > 0) debugLog('Fila 0: ' + JSON.stringify(rows[0]));
+      if (rows.length > 1) debugLog('Fila 1: ' + JSON.stringify(rows[1]));
+
+      let isNewFormat = false;
+      for (const row of rows) {
+        const cel0 = String(row[0] || '').trim();
+        if (cel0 === 'Fecha') { isNewFormat = true; break; }
+        if (dateRegexNew.test(cel0)) { isNewFormat = true; break; }
+      }
+      debugLog('Formato detectado: ' + (isNewFormat ? 'NUEVO (DD/MM/YYYY)' : 'ANTIGUO (DD/MM)'));
+
       for (const row of rows) {
         const cel0 = String(row[0] || '').trim();
         const cel1 = String(row[1] || '').trim();
 
-        if (cel0.includes('Sr') && row[1]) nombreCuenta = String(row[1]).trim();
-        if (cel1 === 'SALDO INICIAL' && row[5]) saldoInicial = parseFloat(row[5]) || 0;
-        if (cel1 === 'SALDO FINAL' && row[5]) saldoFinal = parseFloat(row[5]) || 0;
+        if (isNewFormat) {
+          // Nuevo: row[0]=fecha, row[1]=desc, row[2]=canal, row[3]=cargo, row[4]=abono, row[5]=saldo
+          if (cel0.includes('Sr(a)') && row[1]) nombreCuenta = cel1;
 
-        if (/^\d{2}\/\d{2}$/.test(cel0) && cel1 && !['SALDO INICIAL','SALDO FINAL'].includes(cel1)) {
-          const cargo = parseFloat(row[3]) || 0;
-          const abono = parseFloat(row[4]) || 0;
-          const parts = cel0.split('/');
-          transactions.push({
-            fecha: cel0,
-            dia: parseInt(parts[0]),
-            mes: parseInt(parts[1]),
-            descripcion: cel1,
-            canal: String(row[2] || ''),
-            cargo, abono,
-            categoria: categorize(cel1)
-          });
+          if (dateRegexNew.test(cel0)) {
+            const desc  = cel1;
+            const canal = String(row[2] || '').trim();
+            const cargo = parseFloat(String(row[3] || '0').replace(/\./g, '')) || 0;
+            const abono = parseFloat(String(row[4] || '0').replace(/\./g, '')) || 0;
+            const saldo = parseFloat(String(row[5] || '0').replace(/\./g, '')) || 0;
+            if (!desc || desc === 'Descripción') continue;
+            const parts = cel0.split('/');
+            const fecha = parts[0] + '/' + parts[1];
+            const yr    = parseInt(parts[2]);
+            transactions.push({
+              fecha, dia: parseInt(parts[0]), mes: parseInt(parts[1]), year: yr,
+              descripcion: desc, canal, cargo, abono, saldo,
+              categoria: categorize(desc)
+            });
+          }
+        } else {
+          // Antiguo: row[0]=fecha(DD/MM), row[1]=desc, row[2]=canal, row[3]=cargo, row[4]=abono
+          if (cel0.includes('Sr') && row[1]) nombreCuenta = cel1;
+          if (cel1 === 'SALDO INICIAL' && row[5]) saldoInicial = parseFloat(row[5]) || 0;
+          if (cel1 === 'SALDO FINAL'   && row[5]) saldoFinal   = parseFloat(row[5]) || 0;
+
+          if (dateRegexOld.test(cel0) && cel1 && !['SALDO INICIAL','SALDO FINAL'].includes(cel1)) {
+            const cargo = parseFloat(row[3]) || 0;
+            const abono = parseFloat(row[4]) || 0;
+            const parts = cel0.split('/');
+            transactions.push({
+              fecha: cel0, dia: parseInt(parts[0]), mes: parseInt(parts[1]),
+              year: new Date().getFullYear(),
+              descripcion: cel1, canal: String(row[2] || ''),
+              cargo, abono, categoria: categorize(cel1)
+            });
+          }
         }
+      }
+
+      debugLog('Transacciones encontradas: ' + transactions.length);
+      if (transactions.length > 0) debugLog('Primera: ' + JSON.stringify(transactions[0]));
+
+      if (isNewFormat && transactions.length > 0) {
+        saldoFinal   = transactions[0].saldo || 0;
+        saldoInicial = transactions[transactions.length - 1].saldo || 0;
       }
 
       if (transactions.length === 0) {
@@ -1146,7 +1058,7 @@ function processFile(file) {
 
       const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
       const firstMes = transactions[0].mes;
-      const year = new Date().getFullYear();
+      const year = transactions[0].year || new Date().getFullYear();
       const monthLabel = `${meses[firstMes]} ${year}`;
 
       state.months[monthLabel] = { transactions, saldoInicial, saldoFinal, nombreCuenta };
@@ -1154,22 +1066,183 @@ function processFile(file) {
 
       saveToStorage();
 
+      debugLog('Parsing exitoso: ' + transactions.length + ' transacciones, mes: ' + monthLabel, 'info');
       document.getElementById('loading').style.display = 'none';
       document.getElementById('dashboard').style.display = 'block';
       document.getElementById('upload-more-btn').style.display = 'flex';
       document.getElementById('btn-pdf').style.display = 'flex';
       document.getElementById('btn-cats').style.display = 'flex';
+      showDebugBtn();
 
       renderDashboard();
 
     } catch(err) {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('upload-zone').style.display = '';
-      showError(err.message);
+      debugLog('ERROR: ' + err.message, 'error');
+      debugLog('Stack: ' + (err.stack || 'N/A'), 'error');
+      showDebugBtn();
+      toggleDebug();
+      showError(err.message + ' — Ver panel Debug ↘');
     }
   };
   reader.readAsArrayBuffer(file);
 }
+
+// ─── PDF Parser ─────────────────────────────────────────────────────────────
+async function processPDFFile(file) {
+  try {
+    // Configure pdf.js worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    const transactions = [];
+    let saldoInicial = 0, saldoFinal = 0, nombreCuenta = '';
+    const dateRegex = /^\d{2}\/\d{2}$/;
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+
+      // Group text items by Y coordinate (rounded to nearest 3 units = same row)
+      const rowMap = {};
+      for (const item of textContent.items) {
+        const y = Math.round(item.transform[5] / 3) * 3;
+        if (!rowMap[y]) rowMap[y] = [];
+        rowMap[y].push({ x: item.transform[4], text: item.str.trim() });
+      }
+
+      // Sort rows top-to-bottom (higher Y = higher on page in PDF coords)
+      const sortedYs = Object.keys(rowMap)
+        .map(Number)
+        .sort((a, b) => b - a);
+
+      for (const y of sortedYs) {
+        const cells = rowMap[y]
+          .filter(c => c.text.length > 0)
+          .sort((a, b) => a.x - b.x)
+          .map(c => c.text);
+
+        if (cells.length === 0) continue;
+
+        const joined = cells.join(' ');
+
+        // Detect account holder name (appears near "Sr" or full name lines)
+        if (!nombreCuenta && joined.includes('Ulloa') && joined.includes('Miguel')) {
+          nombreCuenta = joined;
+        }
+
+        // Detect SALDO INICIAL / SALDO FINAL
+        if (joined.includes('SALDO INICIAL')) {
+          const nums = cells.filter(c => /^[\d.]+$/.test(c.replace(/\./g, '').replace(',', '.')));
+          if (nums.length > 0) saldoInicial = parseFloat(nums[nums.length - 1].replace(/\./g, '')) || 0;
+        }
+        if (joined.includes('SALDO FINAL')) {
+          const nums = cells.filter(c => /^[\d.]+$/.test(c.replace(/\./g, '')));
+          if (nums.length > 0) saldoFinal = parseFloat(nums[nums.length - 1].replace(/\./g, '')) || 0;
+        }
+
+        // Detect transaction rows: first cell is DD/MM
+        if (dateRegex.test(cells[0]) && cells.length >= 2) {
+          const fecha = cells[0];
+
+          // Description: all non-numeric text cells after the date (skip branch/channel words at end)
+          // Typical structure: fecha | descripcion | sucursal | n_docto | cargo | abono | saldo
+          // We collect text until we hit a pure number
+          let descParts = [];
+          let amounts = [];
+          let i = 1;
+
+          // Collect description text (non-numeric cells)
+          while (i < cells.length && !/^[\d.,]+$/.test(cells[i].replace(/\./g, ''))) {
+            descParts.push(cells[i]);
+            i++;
+          }
+
+          // Remaining cells are numeric (cargo, abono, saldo)
+          while (i < cells.length) {
+            const n = parseFloat(cells[i].replace(/\./g, '').replace(',', '.'));
+            if (!isNaN(n) && n > 0) amounts.push(n);
+            i++;
+          }
+
+          const descripcion = descParts.join(' ').trim();
+          if (!descripcion || descripcion === 'SALDO INICIAL' || descripcion === 'SALDO FINAL') continue;
+
+          // Determine cargo vs abono from context
+          // The PDF columns are: CARGO (cheques/cargos) | ABONO (depositos) | SALDO
+          // We need at least 1 amount
+          let cargo = 0, abono = 0;
+
+          if (amounts.length >= 3) {
+            // Three amounts: cargo, abono, saldo
+            cargo = amounts[0];
+            abono = amounts[1];
+          } else if (amounts.length === 2) {
+            // Two amounts: one is saldo, the other cargo or abono
+            // Check description keywords to decide
+            const desc = descripcion.toUpperCase();
+            const isAbono = desc.includes('TRASPASO DE') || desc.includes('ABONO') ||
+                            desc.includes('DEPOSITO') || desc.includes('SUELDO') ||
+                            desc.includes('TRANSFERENCIA DESDE') || desc.includes('REMUNERACION');
+            if (isAbono) { abono = amounts[0]; }
+            else { cargo = amounts[0]; }
+          } else if (amounts.length === 1) {
+            const desc = descripcion.toUpperCase();
+            const isAbono = desc.includes('TRASPASO DE') || desc.includes('ABONO') ||
+                            desc.includes('DEPOSITO') || desc.includes('SUELDO') ||
+                            desc.includes('TRANSFERENCIA DESDE') || desc.includes('REMUNERACION');
+            if (isAbono) { abono = amounts[0]; }
+            else { cargo = amounts[0]; }
+          }
+
+          const parts = fecha.split('/');
+          transactions.push({
+            fecha,
+            dia: parseInt(parts[0]),
+            mes: parseInt(parts[1]),
+            descripcion,
+            canal: '',
+            cargo,
+            abono,
+            categoria: categorize(descripcion)
+          });
+        }
+      }
+    }
+
+    if (transactions.length === 0) {
+      throw new Error('No se encontraron transacciones en el PDF. Verifica que sea una cartola del Banco de Chile.');
+    }
+
+    const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const firstMes = transactions[0].mes;
+    const year = new Date().getFullYear();
+    const monthLabel = `${meses[firstMes]} ${year}`;
+
+    state.months[monthLabel] = { transactions, saldoInicial, saldoFinal, nombreCuenta };
+    state.activeMonth = monthLabel;
+
+    saveToStorage();
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('upload-more-btn').style.display = 'flex';
+    document.getElementById('btn-pdf').style.display = 'flex';
+    document.getElementById('btn-cats').style.display = 'flex';
+
+    renderDashboard();
+
+  } catch(err) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('upload-zone').style.display = '';
+    showError('Error al procesar PDF: ' + err.message);
+  }
+}
+
 
 // ─── Dashboard ──────────────────────────────────────────────────────────────
 function renderDashboard() {
@@ -1714,14 +1787,502 @@ function hexToRgb(hex) {
   return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
 }
 
+
+// ─── Google Drive Integration ────────────────────────────────────────────────
+const DRIVE_CLIENT_ID  = '1012770450096-v9t9s639b86bsr04hldjgbh0j2q5v944.apps.googleusercontent.com';
+const DRIVE_FOLDER_ID  = '1Rzfn9GGRhXi-EAKAzzgvRNhcd1Bi2WS9';
+const DRIVE_SCOPES     = 'https://www.googleapis.com/auth/drive';
+
+let driveToken        = null;   // OAuth access token
+let driveFolderProcesados = null;  // ID of Procesados subfolder
+let driveFolderConClave   = null;  // ID of Con_Clave subfolder
+let driveFiles        = [];     // [{id, name, mimeType}]
+
+// ── Open / close modal ───────────────────────────────────────────────────────
+function openDriveSync() {
+  document.getElementById('drive-modal').classList.add('open');
+  if (driveToken) {
+    showDriveConnected();
+    driveFetchFiles();
+  }
+}
+function closeDriveModal() {
+  document.getElementById('drive-modal').classList.remove('open');
+}
+
+// ── OAuth connect ────────────────────────────────────────────────────────────
+function driveConnect() {
+  const params = new URLSearchParams({
+    client_id: DRIVE_CLIENT_ID,
+    redirect_uri: window.location.origin + window.location.pathname,
+    response_type: 'token',
+    scope: DRIVE_SCOPES,
+    include_granted_scopes: 'true',
+    state: 'drive_auth'
+  });
+  const popup = window.open(
+    'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString(),
+    'driveAuth',
+    'width=520,height=640,left=' + ((screen.width-520)/2) + ',top=' + ((screen.height-640)/2)
+  );
+
+  // Poll for redirect back (token in hash)
+  const poll = setInterval(() => {
+    try {
+      if (popup.closed) { clearInterval(poll); return; }
+      const hash = popup.location.hash;
+      if (hash && hash.includes('access_token')) {
+        clearInterval(poll);
+        popup.close();
+        const p = new URLSearchParams(hash.slice(1));
+        driveToken = p.get('access_token');
+        debugLog('Drive OAuth OK, token obtenido', 'info');
+        showDriveConnected();
+        driveFetchFiles();
+      }
+    } catch(e) { /* cross-origin while loading */ }
+  }, 300);
+}
+
+function showDriveConnected() {
+  document.getElementById('drive-not-connected').style.display = 'none';
+  document.getElementById('drive-connected').style.display = 'block';
+}
+
+// ── Set status bar ───────────────────────────────────────────────────────────
+function driveSetStatus(text, spinning = false) {
+  document.getElementById('drive-status-text').textContent = text;
+  document.getElementById('drive-spinner').style.display = spinning ? 'block' : 'none';
+}
+
+// ── Fetch files from folder (excluding subfolders) ───────────────────────────
+async function driveFetchFiles() {
+  driveSetStatus('Buscando archivos en Drive…', true);
+  document.getElementById('drive-file-list').innerHTML = '';
+  document.getElementById('drive-summary').style.display = 'none';
+
+  try {
+    // Ensure subfolders exist
+    await driveEnsureSubfolders();
+
+    const q = encodeURIComponent(
+      `'${DRIVE_FOLDER_ID}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`
+    );
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,size,modifiedTime)&orderBy=modifiedTime desc`,
+      { headers: { Authorization: 'Bearer ' + driveToken } }
+    );
+    const data = await res.json();
+
+    if (data.error) throw new Error(data.error.message);
+
+    driveFiles = data.files || [];
+    debugLog('Drive: ' + driveFiles.length + ' archivo(s) encontrado(s)', 'info');
+    driveSetStatus(driveFiles.length + ' archivo(s) encontrado(s) en la carpeta', false);
+    driveRenderFileList();
+
+  } catch(e) {
+    debugLog('Drive fetch error: ' + e.message, 'error');
+    driveSetStatus('Error al listar archivos: ' + e.message, false);
+    if (e.message.includes('401') || e.message.includes('Invalid Credentials')) {
+      driveToken = null;
+      document.getElementById('drive-not-connected').style.display = 'block';
+      document.getElementById('drive-connected').style.display = 'none';
+    }
+  }
+}
+
+// ── Ensure Procesados / Con_Clave subfolders exist ──────────────────────────
+async function driveEnsureSubfolders() {
+  const folders = ['Procesados', 'Con_Clave'];
+  for (const name of folders) {
+    const q = encodeURIComponent(
+      `name='${name}' and '${DRIVE_FOLDER_ID}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+    );
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`,
+      { headers: { Authorization: 'Bearer ' + driveToken } }
+    );
+    const data = await res.json();
+    let folderId;
+    if (data.files && data.files.length > 0) {
+      folderId = data.files[0].id;
+    } else {
+      // Create subfolder
+      const cr = await fetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + driveToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [DRIVE_FOLDER_ID] })
+      });
+      const cd = await cr.json();
+      folderId = cd.id;
+      debugLog('Drive: carpeta creada: ' + name + ' (' + folderId + ')', 'info');
+    }
+    if (name === 'Procesados') driveFolderProcesados = folderId;
+    else driveFolderConClave = folderId;
+  }
+}
+
+// ── Render file list ─────────────────────────────────────────────────────────
+function driveRenderFileList(statuses = {}) {
+  const list = document.getElementById('drive-file-list');
+  list.innerHTML = '';
+
+  if (driveFiles.length === 0) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:20px 0">No hay archivos nuevos en la carpeta.</p>';
+    document.getElementById('btn-drive-process').disabled = true;
+    return;
+  }
+
+  document.getElementById('btn-drive-process').disabled = false;
+
+  driveFiles.forEach(f => {
+    const isPDF  = f.mimeType === 'application/pdf';
+    const isXLSX = f.name.endsWith('.xlsx') || f.name.endsWith('.xls');
+    const icon   = isPDF ? '📄' : isXLSX ? '📊' : '📁';
+    const status = statuses[f.id] || 'pending';
+    const date   = new Date(f.modifiedTime).toLocaleDateString('es-CL', { day:'2-digit', month:'short', year:'numeric' });
+
+    const statusMap = {
+      pending:  { label: 'Pendiente', cls: 'status-pending' },
+      ok:       { label: '✓ Procesado', cls: 'status-ok' },
+      password: { label: '🔒 Con clave', cls: 'status-password' },
+      error:    { label: '✕ Error', cls: 'status-error' },
+      moving:   { label: '⟳ Moviendo…', cls: 'status-moving' },
+    };
+    const s = statusMap[status] || statusMap.pending;
+
+    const item = document.createElement('div');
+    item.className = 'drive-file-item';
+    item.id = 'drive-item-' + f.id;
+    item.innerHTML = `
+      <div class="drive-file-icon">${icon}</div>
+      <div class="drive-file-info">
+        <div class="drive-file-name" title="${f.name}">${f.name}</div>
+        <div class="drive-file-meta">${date} · ${isPDF ? 'PDF' : isXLSX ? 'Excel' : f.mimeType}</div>
+      </div>
+      <span class="drive-file-status ${s.cls}" id="drive-status-${f.id}">${s.label}</span>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function driveUpdateFileStatus(fileId, status) {
+  const el = document.getElementById('drive-status-' + fileId);
+  if (!el) return;
+  const statusMap = {
+    pending:  { label: 'Pendiente',    cls: 'status-pending' },
+    ok:       { label: '✓ Procesado',  cls: 'status-ok' },
+    password: { label: '🔒 Con clave', cls: 'status-password' },
+    error:    { label: '✕ Error',      cls: 'status-error' },
+    moving:   { label: '⟳ Moviendo…', cls: 'status-moving' },
+    loading:  { label: '⟳ Leyendo…',  cls: 'status-moving' },
+  };
+  const s = statusMap[status] || statusMap.pending;
+  el.className = 'drive-file-status ' + s.cls;
+  el.textContent = s.label;
+}
+
+// ── Download a file from Drive ───────────────────────────────────────────────
+async function driveDownloadFile(fileId) {
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+    { headers: { Authorization: 'Bearer ' + driveToken } }
+  );
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return await res.arrayBuffer();
+}
+
+// ── Move file to subfolder ────────────────────────────────────────────────────
+async function driveMoveFile(fileId, targetFolderId) {
+  // Get current parents first
+  const infoRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents`,
+    { headers: { Authorization: 'Bearer ' + driveToken } }
+  );
+  const info = await infoRes.json();
+  const removeParents = (info.parents || [DRIVE_FOLDER_ID]).join(',');
+
+  await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?addParents=${targetFolderId}&removeParents=${removeParents}&fields=id`,
+    { method: 'PATCH', headers: { Authorization: 'Bearer ' + driveToken } }
+  );
+}
+
+// ── Process all pending files ─────────────────────────────────────────────────
+async function driveProcessAll() {
+  document.getElementById('btn-drive-process').disabled = true;
+  const progressWrap = document.getElementById('drive-progress-wrap');
+  const progressBar  = document.getElementById('drive-progress-bar');
+  progressWrap.style.display = 'block';
+
+  let ok = 0, skipped = 0, errors = 0;
+  const total = driveFiles.length;
+
+  for (let i = 0; i < driveFiles.length; i++) {
+    const f = driveFiles[i];
+    progressBar.style.width = Math.round(((i) / total) * 100) + '%';
+    driveSetStatus(`Procesando ${i+1}/${total}: ${f.name}`, true);
+    driveUpdateFileStatus(f.id, 'loading');
+
+    try {
+      const buffer = await driveDownloadFile(f.id);
+      const isPDF  = f.mimeType === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
+      const isXLSX = f.name.toLowerCase().endsWith('.xlsx') || f.name.toLowerCase().endsWith('.xls');
+
+      let result; // 'ok' | 'password' | 'error'
+
+      if (isPDF) {
+        result = await driveProcessPDFBuffer(buffer, f.name);
+      } else if (isXLSX) {
+        result = driveProcessXLSXBuffer(buffer, f.name);
+      } else {
+        result = 'error';
+        debugLog('Archivo ignorado (tipo no soportado): ' + f.name, 'warn');
+      }
+
+      driveUpdateFileStatus(f.id, 'moving');
+
+      if (result === 'ok') {
+        await driveMoveFile(f.id, driveFolderProcesados);
+        driveUpdateFileStatus(f.id, 'ok');
+        ok++;
+        debugLog('✓ Procesado y movido a Procesados: ' + f.name, 'info');
+      } else if (result === 'password') {
+        await driveMoveFile(f.id, driveFolderConClave);
+        driveUpdateFileStatus(f.id, 'password');
+        skipped++;
+        debugLog('🔒 Con clave, movido a Con_Clave: ' + f.name, 'warn');
+      } else {
+        driveUpdateFileStatus(f.id, 'error');
+        errors++;
+      }
+
+    } catch(e) {
+      debugLog('Error procesando ' + f.name + ': ' + e.message, 'error');
+      driveUpdateFileStatus(f.id, 'error');
+      errors++;
+    }
+  }
+
+  progressBar.style.width = '100%';
+  driveSetStatus('Sincronización completa', false);
+  setTimeout(() => { progressWrap.style.display = 'none'; }, 1500);
+
+  // Show summary
+  const summary = document.getElementById('drive-summary');
+  summary.style.display = 'block';
+  summary.innerHTML = `
+    <strong>Resumen:</strong> ${ok} procesado(s) · ${skipped} con contraseña → <em>Con_Clave</em> · ${errors} error(es)<br>
+    ${ok > 0 ? '✅ El dashboard se actualizó con los datos nuevos.' : ''}
+    ${skipped > 0 ? '🔒 Los archivos protegidos quedan en la carpeta <strong>Con_Clave</strong> para revisión manual.' : ''}
+  `;
+
+  if (ok > 0) {
+    saveToStorage();
+    // Refresh dashboard if visible
+    if (document.getElementById('dashboard').style.display !== 'none') {
+      renderDashboard();
+    } else {
+      // Show dashboard
+      document.getElementById('upload-zone').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      document.getElementById('upload-more-btn').style.display = 'flex';
+      document.getElementById('btn-pdf').style.display = 'flex';
+      document.getElementById('btn-cats').style.display = 'flex';
+      renderDashboard();
+    }
+  }
+
+  // Remove processed files from list (they're no longer in the root folder)
+  driveFiles = driveFiles.filter(f => {
+    const el = document.getElementById('drive-status-' + f.id);
+    return el && (el.textContent.includes('Error'));
+  });
+}
+
+// ── Process PDF buffer (returns 'ok' | 'password' | 'error') ─────────────────
+async function driveProcessPDFBuffer(buffer, filename) {
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    let pdf;
+    try {
+      pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    } catch(e) {
+      if (e.message && (e.message.includes('password') || e.message.includes('encrypted') || e.name === 'PasswordException')) {
+        return 'password';
+      }
+      throw e;
+    }
+
+    // Re-use existing PDF parsing logic
+    const transactions = [];
+    let nombreCuenta = '';
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+
+      const rowMap = {};
+      for (const item of textContent.items) {
+        const y = Math.round(item.transform[5] / 3) * 3;
+        if (!rowMap[y]) rowMap[y] = [];
+        rowMap[y].push({ x: item.transform[4], text: item.str.trim() });
+      }
+
+      const sortedYs = Object.keys(rowMap).map(Number).sort((a, b) => b - a);
+
+      for (const y of sortedYs) {
+        const cells = rowMap[y]
+          .filter(c => c.text.length > 0)
+          .sort((a, b) => a.x - b.x)
+          .map(c => c.text);
+        if (!cells.length) continue;
+
+        const joined = cells.join(' ');
+        if (!nombreCuenta && joined.includes('Ulloa') && joined.includes('Miguel')) nombreCuenta = joined;
+
+        if (/^\d{2}\/\d{2}$/.test(cells[0]) && cells.length >= 2) {
+          const fecha = cells[0];
+          let descParts = [], amounts = [], i = 1;
+          while (i < cells.length && !/^[\d.,]+$/.test(cells[i].replace(/\./g, ''))) {
+            descParts.push(cells[i]); i++;
+          }
+          while (i < cells.length) {
+            const n = parseFloat(cells[i].replace(/\./g, '').replace(',', '.'));
+            if (!isNaN(n) && n > 0) amounts.push(n);
+            i++;
+          }
+          const descripcion = descParts.join(' ').trim();
+          if (!descripcion || ['SALDO INICIAL','SALDO FINAL'].includes(descripcion)) continue;
+
+          let cargo = 0, abono = 0;
+          const desc = descripcion.toUpperCase();
+          const isAbono = desc.includes('TRASPASO DE') || desc.includes('ABONO') || desc.includes('SUELDO') || desc.includes('TRANSFERENCIA DESDE') || desc.includes('REMUNERACION');
+
+          if (amounts.length >= 3)     { cargo = amounts[0]; abono = amounts[1]; }
+          else if (amounts.length > 0) { if (isAbono) abono = amounts[0]; else cargo = amounts[0]; }
+
+          const parts = fecha.split('/');
+          transactions.push({
+            fecha, dia: parseInt(parts[0]), mes: parseInt(parts[1]),
+            year: new Date().getFullYear(),
+            descripcion, canal: '', cargo, abono,
+            categoria: categorize(descripcion)
+          });
+        }
+      }
+    }
+
+    if (transactions.length === 0) return 'error';
+
+    const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const firstMes = transactions[0].mes;
+    const year = transactions[0].year || new Date().getFullYear();
+    const monthLabel = meses[firstMes] + ' ' + year;
+
+    if (!state.months[monthLabel]) {
+      state.months[monthLabel] = { transactions, saldoInicial: 0, saldoFinal: 0, nombreCuenta };
+      state.activeMonth = monthLabel;
+      debugLog('Drive PDF → mes cargado: ' + monthLabel + ' (' + transactions.length + ' movimientos)', 'info');
+    } else {
+      debugLog('Drive PDF → mes ' + monthLabel + ' ya existe, omitido', 'warn');
+    }
+    return 'ok';
+
+  } catch(e) {
+    debugLog('driveProcessPDFBuffer error: ' + e.message, 'error');
+    return 'error';
+  }
+}
+
+// ── Process XLSX buffer ────────────────────────────────────────────────────────
+function driveProcessXLSXBuffer(buffer, filename) {
+  try {
+    const data = new Uint8Array(buffer);
+    const wb   = XLSX.read(data, { type: 'array' });
+    const ws   = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
+
+    const transactions = [];
+    let saldoInicial = 0, saldoFinal = 0, nombreCuenta = '';
+    const dateRegexNew = /^\d{2}\/\d{2}\/\d{4}$/;
+    const dateRegexOld = /^\d{2}\/\d{2}$/;
+
+    let isNewFormat = false;
+    for (const row of rows) {
+      const c = String(row[0] || '').trim();
+      if (c === 'Fecha' || dateRegexNew.test(c)) { isNewFormat = true; break; }
+    }
+
+    for (const row of rows) {
+      const cel0 = String(row[0] || '').trim();
+      const cel1 = String(row[1] || '').trim();
+      if (isNewFormat) {
+        if (cel0.includes('Sr(a)') && row[1]) nombreCuenta = cel1;
+        if (dateRegexNew.test(cel0)) {
+          const desc  = cel1;
+          const cargo = parseFloat(String(row[3] || '0').replace(/\./g,'')) || 0;
+          const abono = parseFloat(String(row[4] || '0').replace(/\./g,'')) || 0;
+          const saldo = parseFloat(String(row[5] || '0').replace(/\./g,'')) || 0;
+          if (!desc || desc === 'Descripción') continue;
+          const parts = cel0.split('/');
+          transactions.push({
+            fecha: parts[0]+'/'+parts[1], dia: parseInt(parts[0]), mes: parseInt(parts[1]),
+            year: parseInt(parts[2]), descripcion: desc, canal: String(row[2]||'').trim(),
+            cargo, abono, saldo, categoria: categorize(desc)
+          });
+        }
+      } else {
+        if (cel0.includes('Sr') && row[1]) nombreCuenta = cel1;
+        if (cel1 === 'SALDO INICIAL' && row[5]) saldoInicial = parseFloat(row[5]) || 0;
+        if (cel1 === 'SALDO FINAL'   && row[5]) saldoFinal   = parseFloat(row[5]) || 0;
+        if (dateRegexOld.test(cel0) && cel1 && !['SALDO INICIAL','SALDO FINAL'].includes(cel1)) {
+          const parts = cel0.split('/');
+          transactions.push({
+            fecha: cel0, dia: parseInt(parts[0]), mes: parseInt(parts[1]),
+            year: new Date().getFullYear(), descripcion: cel1, canal: String(row[2]||''),
+            cargo: parseFloat(row[3])||0, abono: parseFloat(row[4])||0,
+            categoria: categorize(cel1)
+          });
+        }
+      }
+    }
+
+    if (transactions.length === 0) return 'error';
+
+    if (isNewFormat && transactions.length > 0) {
+      saldoFinal   = transactions[0].saldo || 0;
+      saldoInicial = transactions[transactions.length-1].saldo || 0;
+    }
+
+    const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const firstMes = transactions[0].mes;
+    const year = transactions[0].year || new Date().getFullYear();
+    const monthLabel = meses[firstMes] + ' ' + year;
+
+    if (!state.months[monthLabel]) {
+      state.months[monthLabel] = { transactions, saldoInicial, saldoFinal, nombreCuenta };
+      state.activeMonth = monthLabel;
+      debugLog('Drive XLSX → mes cargado: ' + monthLabel + ' (' + transactions.length + ' movimientos)', 'info');
+    } else {
+      debugLog('Drive XLSX → mes ' + monthLabel + ' ya existe, omitido', 'warn');
+    }
+    return 'ok';
+
+  } catch(e) {
+    debugLog('driveProcessXLSXBuffer error: ' + e.message, 'error');
+    return 'error';
+  }
+}
+
+
 // ─── Init ───────────────────────────────────────────────────────────────────
 (function init() {
   loadCatRulesFromStorage();
 
-  // 1. Verificar si venimos del redirect OAuth de Google
-  const oauthHandled = handleOAuthCallback();
-
-  // 2. Cargar datos guardados en localStorage
   const restored = loadFromStorage();
   if (restored) {
     const monthCount = Object.keys(state.months).length;
@@ -1737,15 +2298,116 @@ function hexToRgb(hex) {
 
     renderDashboard();
   }
-
-  // 3. Si tenemos token de Drive, revisar archivos nuevos automáticamente
-  if (oauthHandled && driveAccessToken) {
-    setDriveStatus('connected', 'Google Drive ✓');
-    setTimeout(() => checkDriveForNewFiles(), 500);
-  } else {
-    setDriveStatus('disconnected', 'Google Drive');
-  }
 })();
+
+// ─── Debug Logger ────────────────────────────────────────────────────────────
+const _debugLines = [];
+
+function debugLog(msg, level = 'default') {
+  const ts = new Date().toLocaleTimeString('es-CL', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  const line = `[${ts}] ${msg}`;
+  _debugLines.push({ line, level });
+
+  const el = document.getElementById('debug-log');
+  if (el) {
+    const div = document.createElement('div');
+    div.className = 'log-line' + (level !== 'default' ? ' log-' + level : '');
+    div.textContent = line;
+    el.appendChild(div);
+    el.scrollTop = el.scrollHeight;
+  }
+  console.log(line);
+}
+
+function toggleDebug() {
+  const panel = document.getElementById('debug-panel');
+  const btn   = document.getElementById('debug-toggle-btn');
+  const visible = panel.style.display === 'block';
+  panel.style.display = visible ? 'none' : 'block';
+  if (!visible) {
+    const el = document.getElementById('debug-log');
+    if (el) el.scrollTop = el.scrollHeight;
+  }
+}
+
+function showDebugBtn() {
+  document.getElementById('debug-toggle-btn').style.display = 'block';
+}
+
+function clearDebugLog() {
+  _debugLines.length = 0;
+  const el = document.getElementById('debug-log');
+  if (el) el.innerHTML = '';
+}
+
+function copyDebugLog() {
+  const text = _debugLines.map(d => d.line).join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    alert('Log copiado al portapapeles');
+  }).catch(() => {
+    prompt('Copia el log:', text);
+  });
+}
+
 </script>
+
+  <!-- Drive Sync Modal -->
+  <div class="modal-overlay" id="drive-modal" onclick="if(event.target===this)closeDriveModal()">
+    <div class="modal-box">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <h2 style="display:flex;align-items:center;gap:10px">
+          <svg width="20" height="18" viewBox="0 0 87.3 78" fill="currentColor"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3L27.5 53H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="M43.65 25L29.9 1.2C28.55.4 27 0 25.45 0c-1.55 0-3.1.4-4.45 1.2L6.6 25z" fill="#00ac47"/><path d="M80.7 53H53l13.75 23.8c1.35-.8 2.5-1.9 3.3-3.3l3.85-6.65c.8-1.4 1.2-2.95 1.2-4.5.0-1.55-.4-3.1-1.2-4.5z" fill="#ea4335"/><path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.95 0H33.55C32 0 30.45.4 29.1 1.2z" fill="#00832d"/><path d="M59.4 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.45 1.2h50.6c1.55 0 3.1-.4 4.45-1.2z" fill="#2684fc"/><path d="M43.65 25L57.4 48.85 71.2 25H43.65z" fill="#ffba00"/></svg>
+          Sincronizar desde Drive
+        </h2>
+        <button onclick="closeDriveModal()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0 4px">✕</button>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+        Detecta archivos nuevos en la carpeta <strong style="color:var(--text)">Dashboard_Finanzas</strong> y los procesa automáticamente.
+      </p>
+
+      <!-- State: not connected -->
+      <div id="drive-not-connected" class="drive-connect-area">
+        <p>Conecta tu cuenta de Google para acceder a los archivos de la carpeta <strong>Dashboard_Finanzas</strong>.</p>
+        <button class="btn-drive-connect" onclick="driveConnect()">
+          <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          Conectar con Google
+        </button>
+      </div>
+
+      <!-- State: connected, listing files -->
+      <div id="drive-connected" style="display:none">
+        <div id="drive-status-bar" style="font-size:12px;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:8px">
+          <div class="spinner" style="width:14px;height:14px;border-width:2px;display:none" id="drive-spinner"></div>
+          <span id="drive-status-text">Listo</span>
+        </div>
+        <div class="drive-progress" style="display:none" id="drive-progress-wrap">
+          <div class="drive-progress-bar" id="drive-progress-bar" style="width:0%"></div>
+        </div>
+        <div class="drive-file-list" id="drive-file-list"></div>
+        <div class="drive-summary" id="drive-summary" style="display:none"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+          <button onclick="closeDriveModal()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:8px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">Cerrar</button>
+          <button id="btn-drive-process" onclick="driveProcessAll()" style="background:rgba(74,222,128,0.15);border:1px solid rgba(74,222,128,0.3);color:#4ade80;padding:8px 18px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer">
+            ▶ Procesar archivos nuevos
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Debug Panel -->
+  <button id="debug-toggle-btn" onclick="toggleDebug()">🐛 Debug</button>
+  <div id="debug-panel">
+    <div id="debug-header">
+      <span>🐛 Debug Log</span>
+      <div class="debug-actions">
+        <button onclick="copyDebugLog()">📋 Copiar</button>
+        <button onclick="clearDebugLog()">🗑 Limpiar</button>
+        <button onclick="toggleDebug()">✕ Cerrar</button>
+      </div>
+    </div>
+    <div id="debug-log"></div>
+  </div>
+
 </body>
 </html>
