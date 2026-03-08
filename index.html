@@ -457,7 +457,7 @@
   <!-- Version Banner -->
   <div class="version-banner">
     <div class="v-left">
-      <span class="version-tag">v2.3.1</span>
+      <span class="version-tag">v2.3.2</span>
       <span class="version-date">Marzo 2026</span>
       <span class="version-desc">Sincronización Drive · Soporte PDF/xlsx · Categorías · Comparativa multi-mes</span>
     </div>
@@ -472,11 +472,11 @@
       <h2>📋 Historial de Versiones</h2>
 
       <div class="changelog-entry">
-        <div class="cv"><span class="vtag">v2.3.1</span><span class="vdate">Marzo 2026</span></div>
+        <div class="cv"><span class="vtag">v2.3.2</span><span class="vdate">Marzo 2026</span></div>
         <ul>
           <li>Fix: botón "Ver Dashboard →" aparece tras sincronización Drive exitosa</li>
           <li>Fix: modal Drive se cierra automáticamente (4s) si no hay errores</li>
-          <li>Fix: versión en footer actualizada a v2.3.1</li>
+          <li>Fix: versión en footer actualizada a v2.3.2</li>
         </ul>
       </div>
       <div class="changelog-entry">
@@ -699,14 +699,14 @@
 
   <footer>
     <div>Todos los datos se procesan localmente en tu navegador. Ningún dato es enviado a servidores externos.</div>
-    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.3.1 · Marzo 2026</div>
+    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.3.2 · Marzo 2026</div>
   </footer>
 
 </div>
 
 <script>
 // ─── Constants ─────────────────────────────────────────────────────────────
-const APP_VERSION = 'v2.3.1';
+const APP_VERSION = 'v2.3.2';
 const APP_DATE = 'Marzo 2026';
 const STORAGE_KEY = 'finanzas_bch_data';
 const STORAGE_CATS_KEY = 'finanzas_bch_cats';
@@ -821,30 +821,49 @@ function categorize(desc) {
 // ─── Persistence ───────────────────────────────────────────────────────────
 function saveToStorage() {
   try {
-    // Serialize months data (transactions are plain objects, safe to JSON)
     const toSave = {};
     for (const [k, v] of Object.entries(state.months)) {
       toSave[k] = v;
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    const serialized = JSON.stringify(toSave);
+    const sizeKB = Math.round(serialized.length / 1024);
+    localStorage.setItem(STORAGE_KEY, serialized);
+
+    // Verify it was actually written
+    const verify = localStorage.getItem(STORAGE_KEY);
+    if (!verify) throw new Error('localStorage.getItem devolvió null después de setItem');
+
+    const months = Object.keys(toSave);
+    debugLog(`💾 Guardado OK: ${months.length} mes(es) [${months.join(', ')}] · ${sizeKB} KB`, 'info');
+    return true;
   } catch(e) {
-    console.warn('No se pudo guardar en localStorage:', e);
+    debugLog('❌ ERROR saveToStorage: ' + e.message, 'error');
+    showError('No se pudo guardar en localStorage: ' + e.message);
+    showDebugBtn();
+    return false;
   }
 }
 
 function loadFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return false;
+    if (!raw) {
+      debugLog('loadFromStorage: sin datos en localStorage', 'info');
+      return false;
+    }
     const data = JSON.parse(raw);
-    if (!data || Object.keys(data).length === 0) return false;
+    if (!data || Object.keys(data).length === 0) {
+      debugLog('loadFromStorage: datos vacíos', 'warn');
+      return false;
+    }
     state.months = data;
-    // Restore active month to the last one
     const keys = Object.keys(state.months);
     state.activeMonth = keys[keys.length - 1];
+    const sizeKB = Math.round(raw.length / 1024);
+    debugLog(`📂 Restaurado: ${keys.length} mes(es) [${keys.join(', ')}] · ${sizeKB} KB`, 'info');
     return true;
   } catch(e) {
-    console.warn('Error cargando datos:', e);
+    debugLog('❌ ERROR loadFromStorage: ' + e.message, 'error');
     return false;
   }
 }
@@ -2196,10 +2215,22 @@ async function driveProcessPDFBuffer(buffer, filename) {
     if (!state.months[monthLabel]) {
       state.months[monthLabel] = { transactions, saldoInicial: 0, saldoFinal: 0, nombreCuenta };
       state.activeMonth = monthLabel;
-      debugLog('Drive PDF → mes cargado: ' + monthLabel + ' (' + transactions.length + ' movimientos)', 'info');
+      debugLog('Drive PDF → mes NUEVO cargado: ' + monthLabel + ' (' + transactions.length + ' movimientos)', 'info');
     } else {
-      debugLog('Drive PDF → mes ' + monthLabel + ' ya existe, omitido', 'warn');
+      // Merge: add only transactions not already present (by fecha+descripcion)
+      const existing = state.months[monthLabel].transactions;
+      const existingKeys = new Set(existing.map(t => t.fecha + '|' + t.descripcion + '|' + t.cargo));
+      const newTxs = transactions.filter(t => !existingKeys.has(t.fecha + '|' + t.descripcion + '|' + t.cargo));
+      if (newTxs.length > 0) {
+        state.months[monthLabel].transactions = [...existing, ...newTxs];
+        state.activeMonth = monthLabel;
+        debugLog('Drive PDF → mes ' + monthLabel + ' ya existía, se añadieron ' + newTxs.length + ' transacciones nuevas', 'info');
+      } else {
+        debugLog('Drive PDF → mes ' + monthLabel + ' ya existe con mismos datos, omitido', 'warn');
+      }
     }
+    // Always save immediately after modifying state
+    saveToStorage();
     return 'ok';
 
   } catch(e) {
@@ -2276,10 +2307,20 @@ function driveProcessXLSXBuffer(buffer, filename) {
     if (!state.months[monthLabel]) {
       state.months[monthLabel] = { transactions, saldoInicial, saldoFinal, nombreCuenta };
       state.activeMonth = monthLabel;
-      debugLog('Drive XLSX → mes cargado: ' + monthLabel + ' (' + transactions.length + ' movimientos)', 'info');
+      debugLog('Drive XLSX → mes NUEVO cargado: ' + monthLabel + ' (' + transactions.length + ' movimientos)', 'info');
     } else {
-      debugLog('Drive XLSX → mes ' + monthLabel + ' ya existe, omitido', 'warn');
+      const existing = state.months[monthLabel].transactions;
+      const existingKeys = new Set(existing.map(t => t.fecha + '|' + t.descripcion + '|' + t.cargo));
+      const newTxs = transactions.filter(t => !existingKeys.has(t.fecha + '|' + t.descripcion + '|' + t.cargo));
+      if (newTxs.length > 0) {
+        state.months[monthLabel].transactions = [...existing, ...newTxs];
+        state.activeMonth = monthLabel;
+        debugLog('Drive XLSX → mes ' + monthLabel + ' ya existía, se añadieron ' + newTxs.length + ' transacciones', 'info');
+      } else {
+        debugLog('Drive XLSX → mes ' + monthLabel + ' ya existe con mismos datos, omitido', 'warn');
+      }
     }
+    saveToStorage();
     return 'ok';
 
   } catch(e) {
