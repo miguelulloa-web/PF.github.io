@@ -456,7 +456,7 @@
   <!-- Version Banner -->
   <div class="version-banner">
     <div class="v-left">
-      <span class="version-tag">v2.4.0</span>
+      <span class="version-tag">v2.4.3</span>
       <span class="version-date">Marzo 2026</span>
       <span class="version-desc">Sincronización Drive · Soporte PDF/xlsx · Categorías · Comparativa multi-mes</span>
     </div>
@@ -471,11 +471,11 @@
       <h2>📋 Historial de Versiones</h2>
 
       <div class="changelog-entry">
-        <div class="cv"><span class="vtag">v2.4.0</span><span class="vdate">Marzo 2026</span></div>
+        <div class="cv"><span class="vtag">v2.4.3</span><span class="vdate">Marzo 2026</span></div>
         <ul>
           <li>Fix: botón "Ver Dashboard →" aparece tras sincronización Drive exitosa</li>
           <li>Fix: modal Drive se cierra automáticamente (4s) si no hay errores</li>
-          <li>Fix: versión en footer actualizada a v2.4.0</li>
+          <li>Fix: versión en footer actualizada a v2.4.3</li>
         </ul>
       </div>
       <div class="changelog-entry">
@@ -617,7 +617,6 @@
       </div>
     </div>
 
-    <!-- Data content (hidden until data loaded) -->
     <div id="dashboard-content" style="display:none">
     <div class="month-tabs">
       <span>Mes:</span>
@@ -692,21 +691,19 @@
         </table>
       </div>
       <div class="pagination" id="pagination"></div>
-    </div>
-  </div>
-
+    </div> <!-- /table-card -->
     </div> <!-- /dashboard-content -->
 
   <footer>
     <div>Todos los datos se procesan localmente en tu navegador. Ningún dato es enviado a servidores externos.</div>
-    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.0 · Marzo 2026</div>
+    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.3 · Marzo 2026</div>
   </footer>
 
   </div> <!-- /dashboard -->
 
 <script>
 // ─── Constants ─────────────────────────────────────────────────────────────
-const APP_VERSION = 'v2.4.0';
+const APP_VERSION = 'v2.4.3';
 const APP_DATE = 'Marzo 2026';
 const STORAGE_KEY = 'finanzas_bch_data';
 const STORAGE_CATS_KEY = 'finanzas_bch_cats';
@@ -969,6 +966,7 @@ function hideLoadingToast() {
 function showDashboardContent() {
   document.getElementById('empty-state').style.display = 'none';
   document.getElementById('dashboard-content').style.display = 'block';
+  document.getElementById('dashboard-content').style.visibility = 'visible';
 }
 function showEmptyState() {
   document.getElementById('empty-state').style.display = 'flex';
@@ -1033,8 +1031,13 @@ function processFile(file) {
 
       debugLog('=== INICIO PARSING XLSX ===');
       debugLog('Total filas leídas: ' + rows.length);
-      if (rows.length > 0) debugLog('Fila 0: ' + JSON.stringify(rows[0]));
-      if (rows.length > 1) debugLog('Fila 1: ' + JSON.stringify(rows[1]));
+      // Log primeras 6 filas para diagnóstico
+      for (let _i = 0; _i < Math.min(6, rows.length); _i++) {
+        debugLog('Fila ' + _i + ': ' + JSON.stringify(rows[_i]));
+      }
+      // Log primera fila con contenido real
+      const _primeraNoCero = rows.find(r => r && r.some(c => c !== undefined && c !== null && c !== ''));
+      debugLog('Primera fila con datos: ' + JSON.stringify(_primeraNoCero));
 
       let isNewFormat = false;
       for (const row of rows) {
@@ -2335,19 +2338,6 @@ function driveProcessXLSXBuffer(buffer, filename) {
 
 
 // ─── Init ───────────────────────────────────────────────────────────────────
-(function init() {
-  loadCatRulesFromStorage();
-
-  const restored = loadFromStorage();
-  if (restored) {
-    showDashboardContent();
-    renderDashboard();
-    debugLog('Sesión restaurada: ' + Object.keys(state.months).join(', '), 'info');
-  } else {
-    showEmptyState();
-  }
-})();
-
 // ─── Debug Logger ────────────────────────────────────────────────────────────
 const _debugLines = [];
 
@@ -2396,6 +2386,21 @@ function copyDebugLog() {
     prompt('Copia el log:', text);
   });
 }
+
+
+(function init() {
+  loadCatRulesFromStorage();
+
+  const restored = loadFromStorage();
+  if (restored) {
+    showDashboardContent();
+    renderDashboard();
+    debugLog('Sesión restaurada: ' + Object.keys(state.months).join(', '), 'info');
+  } else {
+    showEmptyState();
+  }
+})();
+
 
 </script>
 
