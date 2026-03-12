@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Dashboard Finanzas Personales · Banco de Chile
-  Versión : v2.5.0
+  Versión : v2.5.2
   Fecha   : Marzo 2026
   Repo    : https://github.com/miguelulloa-web/PF.github.io
 -->
@@ -539,7 +539,7 @@
   <!-- Version Banner -->
   <div class="version-banner">
     <div class="v-left">
-      <span class="version-tag">v2.5.0</span>
+      <span class="version-tag">v2.5.2</span>
       <span class="version-date">Marzo 2026</span>
       <span class="version-desc">Sincronización Drive · Soporte PDF/xlsx · Categorías · Comparativa multi-mes</span>
     </div>
@@ -554,11 +554,11 @@
       <h2>📋 Historial de Versiones</h2>
 
       <div class="changelog-entry">
-        <div class="cv"><span class="vtag">v2.5.0</span><span class="vdate">Marzo 2026</span></div>
+        <div class="cv"><span class="vtag">v2.5.2</span><span class="vdate">Marzo 2026</span></div>
         <ul>
           <li>Fix: botón "Ver Dashboard →" aparece tras sincronización Drive exitosa</li>
           <li>Fix: modal Drive se cierra automáticamente (4s) si no hay errores</li>
-          <li>Fix: versión en footer actualizada a v2.5.0</li>
+          <li>Fix: versión en footer actualizada a v2.5.2</li>
         </ul>
       </div>
       <div class="changelog-entry">
@@ -857,14 +857,14 @@
 
   <footer>
     <div>Todos los datos se procesan localmente en tu navegador. Ningún dato es enviado a servidores externos.</div>
-    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.5.0 · Marzo 2026</div>
+    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.5.2 · Marzo 2026</div>
   </footer>
 
   </div> <!-- /dashboard -->
 
 <script>
 // ─── Constants ─────────────────────────────────────────────────────────────
-const APP_VERSION = 'v2.5.0';
+const APP_VERSION = 'v2.5.2';
 const APP_DATE = 'Marzo 2026';
 const STORAGE_KEY = 'finanzas_bch_data';
 const STORAGE_CATS_KEY        = 'finanzas_bch_cats';
@@ -1373,17 +1373,9 @@ function processFile(file) {
         throw new Error('No se encontraron transacciones. Verifica que el archivo sea una cartola del Banco de Chile.');
       }
 
-      const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-      const firstMes = transactions[0].mes;
-      const year = transactions[0].year || new Date().getFullYear();
-      const monthLabel = `${meses[firstMes]} ${year}`;
-
-      state.months[monthLabel] = { transactions, saldoInicial, saldoFinal, nombreCuenta };
-      state.activeMonth = monthLabel;
-
+      debugLog('Parsing exitoso: ' + transactions.length + ' transacciones', 'info');
+      mergeTransactionsByMonth(transactions, saldoInicial, saldoFinal, nombreCuenta);
       saveToStorage();
-
-      debugLog('Parsing exitoso: ' + transactions.length + ' transacciones, mes: ' + monthLabel, 'info');
       hideLoadingToast();
       try {
         showDashboardContent();
@@ -1526,6 +1518,7 @@ async function processPDFFile(file) {
             fecha,
             dia: parseInt(parts[0]),
             mes: parseInt(parts[1]),
+            year: new Date().getFullYear(),
             descripcion,
             canal: '',
             cargo,
@@ -1540,14 +1533,8 @@ async function processPDFFile(file) {
       throw new Error('No se encontraron transacciones en el PDF. Verifica que sea una cartola del Banco de Chile.');
     }
 
-    const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-    const firstMes = transactions[0].mes;
-    const year = new Date().getFullYear();
-    const monthLabel = `${meses[firstMes]} ${year}`;
-
-    state.months[monthLabel] = { transactions, saldoInicial, saldoFinal, nombreCuenta };
-    state.activeMonth = monthLabel;
-
+    debugLog('Parsing PDF exitoso: ' + transactions.length + ' transacciones', 'info');
+    mergeTransactionsByMonth(transactions, saldoInicial, saldoFinal, nombreCuenta);
     saveToStorage();
 
     hideLoadingToast();
@@ -1575,6 +1562,54 @@ async function processPDFFile(file) {
 
 
 // ─── Dashboard ──────────────────────────────────────────────────────────────
+
+// ─── Split parsed transactions into separate month entries ──────────────────
+function mergeTransactionsByMonth(transactions, saldoInicial, saldoFinal, nombreCuenta) {
+  const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  // Group transactions by mes+year
+  const groups = {};
+  transactions.forEach(t => {
+    const key = `${meses[t.mes]} ${t.year}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(t);
+  });
+
+  const groupKeys = Object.keys(groups);
+  let lastKey = null;
+
+  groupKeys.forEach((label, idx) => {
+    const txs = groups[label];
+    // Primary month (most transactions) gets real saldos; secondary months get 0
+    const isPrimary = txs.length === Math.max(...groupKeys.map(k => groups[k].length));
+    const sI = isPrimary ? saldoInicial : 0;
+    const sF = isPrimary ? saldoFinal   : 0;
+
+    if (!state.months[label]) {
+      state.months[label] = { transactions: txs, saldoInicial: sI, saldoFinal: sF, nombreCuenta };
+      debugLog(`Mes nuevo creado: ${label} (${txs.length} transacciones)`, 'info');
+    } else {
+      // Merge: add only transactions not already present (dedup by fecha+desc+cargo+abono)
+      const existing = state.months[label].transactions;
+      const newTxs = txs.filter(t =>
+        !existing.some(e => e.fecha === t.fecha && e.descripcion === t.descripcion &&
+                            e.cargo === t.cargo && e.abono === t.abono)
+      );
+      if (newTxs.length > 0) {
+        state.months[label].transactions = [...existing, ...newTxs];
+        debugLog(`Mes ${label} actualizado: +${newTxs.length} transacciones`, 'info');
+      } else {
+        debugLog(`Mes ${label}: sin transacciones nuevas`, 'warn');
+      }
+    }
+    lastKey = label;
+  });
+
+  // Activate the month with the most transactions
+  const primaryKey = groupKeys.reduce((a, b) => groups[a].length >= groups[b].length ? a : b);
+  state.activeMonth = primaryKey;
+}
+
 function renderDashboard() {
   renderMonthTabs();
 
@@ -1595,11 +1630,21 @@ function renderDashboard() {
     filterTableAll();
   } else {
     const { transactions, saldoInicial, saldoFinal, nombreCuenta } = state.months[state.activeMonth];
-    renderKPIs(transactions, saldoInicial, saldoFinal, nombreCuenta);
-    renderCharts(transactions);
+
+    // Filter transactions to only the active month/year (cartolas can include adjacent month dates)
+    const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const mParts   = state.activeMonth.split(' ');
+    const activeMes  = meses.indexOf(mParts[0]);
+    const activeYear = parseInt(mParts[1]);
+    const txsMonth = activeMes
+      ? transactions.filter(t => t.mes === activeMes && t.year === activeYear)
+      : transactions;
+
+    renderKPIs(txsMonth, saldoInicial, saldoFinal, nombreCuenta);
+    renderCharts(txsMonth);
     state.activeFilter = 'Todos';
     state.page = 1;
-    renderFilters(transactions);
+    renderFilters(txsMonth);
     filterTable();
   }
 }
@@ -2769,7 +2814,7 @@ function driveProcessXLSXBuffer(buffer, filename) {
 // ─── Debug Logger ────────────────────────────────────────────────────────────
 const _debugLines = [];
 // Log version on first use
-debugLog('Dashboard Finanzas Personales · Banco de Chile · v2.5.0', 'info');
+debugLog('Dashboard Finanzas Personales · Banco de Chile · v2.5.2', 'info');
 
 function debugLog(msg, level = 'default') {
   const ts = new Date().toLocaleTimeString('es-CL', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
