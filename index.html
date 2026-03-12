@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Dashboard Finanzas Personales · Banco de Chile
-  Versión : v2.4.6
+  Versión : v2.4.7
   Fecha   : Marzo 2026
   Repo    : https://github.com/miguelulloa-web/PF.github.io
 -->
@@ -210,6 +210,24 @@
     transition: all 0.2s;
   }
   .btn-reset-cats:hover { border-color: var(--red); color: #f87171; }
+  /* Custom categories section */
+  .custom-cats-section { margin-top:20px; padding-top:16px; border-top:1px solid var(--border); }
+  .custom-cats-section h3 { font-size:13px; font-weight:600; color:var(--text); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+  .custom-cats-list { display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; margin-bottom:12px; }
+  .custom-cat-row { display:flex; align-items:center; gap:8px; padding:7px 10px; background:var(--surface2); border-radius:8px; border:1px solid var(--border); }
+  .custom-cat-preview { width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+  .custom-cat-name { flex:1; font-size:13px; font-weight:500; }
+  .custom-cat-group { font-size:11px; color:var(--muted); padding:2px 8px; border-radius:100px; background:rgba(255,255,255,0.06); }
+  .btn-del-custom-cat { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); color:#f87171; border-radius:6px; cursor:pointer; font-size:12px; padding:3px 8px; transition:all 0.15s; }
+  .btn-del-custom-cat:hover { background:rgba(239,68,68,0.22); }
+  .new-cat-form { display:grid; grid-template-columns:1fr auto auto 80px auto; gap:8px; align-items:center; background:var(--surface2); border-radius:8px; border:1px solid var(--border); padding:8px 10px; }
+  .new-cat-form input, .new-cat-form select { background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:12px; padding:5px 8px; outline:none; }
+  .new-cat-form input:focus, .new-cat-form select:focus { border-color:var(--accent); }
+  .new-cat-emoji { width:38px; text-align:center; font-size:16px; }
+  .new-cat-color { width:38px; height:32px; padding:2px; border-radius:6px; cursor:pointer; border:1px solid var(--border); background:var(--bg); }
+  .btn-add-custom-cat { display:inline-flex; align-items:center; gap:5px; background:rgba(59,130,246,0.12); border:1px solid rgba(59,130,246,0.3); color:var(--accent); border-radius:6px; padding:6px 12px; font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+  .btn-add-custom-cat:hover { background:rgba(59,130,246,0.22); }
+  @media(max-width:600px) { .new-cat-form { grid-template-columns:1fr auto auto; grid-template-rows:auto auto; } }
 
   /* Header */
   header { display:flex; align-items:center; justify-content:space-between; margin-bottom:40px; flex-wrap:wrap; gap:16px; }
@@ -503,7 +521,7 @@
   <!-- Version Banner -->
   <div class="version-banner">
     <div class="v-left">
-      <span class="version-tag">v2.4.6</span>
+      <span class="version-tag">v2.4.7</span>
       <span class="version-date">Marzo 2026</span>
       <span class="version-desc">Sincronización Drive · Soporte PDF/xlsx · Categorías · Comparativa multi-mes</span>
     </div>
@@ -518,11 +536,11 @@
       <h2>📋 Historial de Versiones</h2>
 
       <div class="changelog-entry">
-        <div class="cv"><span class="vtag">v2.4.6</span><span class="vdate">Marzo 2026</span></div>
+        <div class="cv"><span class="vtag">v2.4.7</span><span class="vdate">Marzo 2026</span></div>
         <ul>
           <li>Fix: botón "Ver Dashboard →" aparece tras sincronización Drive exitosa</li>
           <li>Fix: modal Drive se cierra automáticamente (4s) si no hay errores</li>
-          <li>Fix: versión en footer actualizada a v2.4.6</li>
+          <li>Fix: versión en footer actualizada a v2.4.7</li>
         </ul>
       </div>
       <div class="changelog-entry">
@@ -600,6 +618,29 @@
       <div class="cat-actions">
         <button class="btn-save-cats" onclick="saveCatRules()">💾 Guardar y recategorizar</button>
         <button class="btn-reset-cats" onclick="resetCatRules()">↺ Restablecer defaults</button>
+      </div>
+
+      <!-- Custom categories -->
+      <div class="custom-cats-section">
+        <h3>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Mis categorías personalizadas
+        </h3>
+        <div class="custom-cats-list" id="custom-cats-list"></div>
+        <div class="new-cat-form" id="new-cat-form">
+          <input type="text" id="new-cat-name" placeholder="Nombre de categoría" maxlength="40">
+          <input type="text" id="new-cat-emoji" class="new-cat-emoji" placeholder="🏷️" maxlength="2">
+          <input type="color" id="new-cat-color" class="new-cat-color" value="#6366f1">
+          <select id="new-cat-group">
+            <option value="egreso">Egreso</option>
+            <option value="ingreso">Ingreso</option>
+            <option value="neutro">Neutro</option>
+          </select>
+          <button class="btn-add-custom-cat" onclick="addCustomCat()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Agregar
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -743,17 +784,19 @@
 
   <footer>
     <div>Todos los datos se procesan localmente en tu navegador. Ningún dato es enviado a servidores externos.</div>
-    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.6 · Marzo 2026</div>
+    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.7 · Marzo 2026</div>
   </footer>
 
   </div> <!-- /dashboard -->
 
 <script>
 // ─── Constants ─────────────────────────────────────────────────────────────
-const APP_VERSION = 'v2.4.6';
+const APP_VERSION = 'v2.4.7';
 const APP_DATE = 'Marzo 2026';
 const STORAGE_KEY = 'finanzas_bch_data';
-const STORAGE_CATS_KEY = 'finanzas_bch_cats';
+const STORAGE_CATS_KEY        = 'finanzas_bch_cats';
+const STORAGE_CUSTOM_CATS_KEY = 'finanzas_bch_custom_cats';
+let customCats = {}; // { 'Nombre': { color, emoji, group } }
 const VIEW_ALL = '__ALL__';
 
 // ─── Default category rules ────────────────────────────────────────────────
@@ -831,11 +874,17 @@ const CAT_CONFIG = {
   'Otros':                     { color:'#334155', emoji:'❓' },
 };
 
+function getAllCats() {
+  // Merge built-in + custom categories
+  return { ...CAT_CONFIG, ...customCats };
+}
+
 function getCatConfig(cat) {
-  return CAT_CONFIG[cat] || { color:'#64748b', emoji:'❓' };
+  return getAllCats()[cat] || { color:'#64748b', emoji:'❓' };
 }
 
 function getCatGroup(cat) {
+  if (customCats[cat]) return customCats[cat].group || 'egreso';
   const rule = catRules.find(r => r.cat === cat);
   return rule ? rule.group : 'egreso';
 }
@@ -915,26 +964,32 @@ function loadFromStorage() {
 function saveCatRulesToStorage() {
   try {
     localStorage.setItem(STORAGE_CATS_KEY, JSON.stringify(catRules));
+    localStorage.setItem(STORAGE_CUSTOM_CATS_KEY, JSON.stringify(customCats));
   } catch(e) {}
 }
 
 function loadCatRulesFromStorage() {
   try {
-    const raw = localStorage.getItem(STORAGE_CATS_KEY);
-    if (raw) {
-      catRules = JSON.parse(raw);
-      return;
-    }
-  } catch(e) {}
-  catRules = [...DEFAULT_CAT_RULES];
+    const rawRules = localStorage.getItem(STORAGE_CATS_KEY);
+    if (rawRules) catRules = JSON.parse(rawRules);
+    else catRules = [...DEFAULT_CAT_RULES];
+
+    const rawCats = localStorage.getItem(STORAGE_CUSTOM_CATS_KEY);
+    if (rawCats) customCats = JSON.parse(rawCats);
+  } catch(e) {
+    catRules = [...DEFAULT_CAT_RULES];
+    customCats = {};
+  }
 }
 
 function clearSavedData() {
   if (!confirm('¿Limpiar todos los datos guardados? Esta acción no se puede deshacer.')) return;
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(STORAGE_CATS_KEY);
+  localStorage.removeItem(STORAGE_CUSTOM_CATS_KEY);
   state.months = {};
   state.activeMonth = null;
+  customCats = {};
   showEmptyState();
   location.reload();
 }
@@ -942,6 +997,7 @@ function clearSavedData() {
 // ─── Category Editor ───────────────────────────────────────────────────────
 function openCatEditor() {
   renderCatEditor();
+  renderCustomCatsList();
   document.getElementById('cat-modal').classList.add('open');
 }
 
@@ -951,7 +1007,7 @@ function renderCatEditor() {
   catRules.forEach((rule, i) => {
     const row = document.createElement('div');
     row.className = 'cat-rule-row';
-    const allCats = Object.keys(CAT_CONFIG);
+    const allCats = Object.keys(getAllCats());
     const catOptions = allCats.map(c => `<option value="${c}" ${c===rule.cat?'selected':''}>${c}</option>`).join('');
     const groupOptions = ['ingreso','egreso','neutro'].map(g => `<option value="${g}" ${g===rule.group?'selected':''}>${g}</option>`).join('');
     row.innerHTML = `
@@ -971,7 +1027,7 @@ function updateRule(el) {
 }
 
 function addCatRule() {
-  catRules.push({ text: '', cat: 'Otros', group: 'egreso' });
+  catRules.push({ text: '', cat: Object.keys(getAllCats())[0] || 'Otros', group: 'egreso' });
   renderCatEditor();
   // Scroll to bottom
   document.getElementById('cat-rules-container').lastChild?.scrollIntoView({ behavior: 'smooth' });
@@ -980,6 +1036,66 @@ function addCatRule() {
 function deleteRule(i) {
   catRules.splice(i, 1);
   renderCatEditor();
+}
+
+
+function renderCustomCatsList() {
+  const list = document.getElementById('custom-cats-list');
+  list.innerHTML = '';
+  const entries = Object.entries(customCats);
+  if (entries.length === 0) {
+    list.innerHTML = '<p style="font-size:12px;color:var(--muted);padding:4px 0">No hay categorías personalizadas aún.</p>';
+    return;
+  }
+  entries.forEach(([name, cfg]) => {
+    const row = document.createElement('div');
+    row.className = 'custom-cat-row';
+    row.innerHTML = `
+      <div class="custom-cat-preview" style="background:${cfg.color}22;border:1px solid ${cfg.color}44">${cfg.emoji}</div>
+      <span class="custom-cat-name">${name}</span>
+      <span class="custom-cat-group">${cfg.group}</span>
+      <button class="btn-del-custom-cat" onclick="deleteCustomCat('${name.replace(/'/g,"\'")}')">✕ Eliminar</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function addCustomCat() {
+  const name  = document.getElementById('new-cat-name').value.trim();
+  const emoji = document.getElementById('new-cat-emoji').value.trim() || '🏷️';
+  const color = document.getElementById('new-cat-color').value;
+  const group = document.getElementById('new-cat-group').value;
+
+  if (!name) { showError('Ingresa un nombre para la categoría.'); return; }
+  if (getAllCats()[name]) { showError('Ya existe una categoría con ese nombre.'); return; }
+
+  customCats[name] = { color, emoji, group };
+  saveCatRulesToStorage();
+  renderCustomCatsList();
+  renderCatEditor(); // refresh selects to include new cat
+
+  // Reset form
+  document.getElementById('new-cat-name').value = '';
+  document.getElementById('new-cat-emoji').value = '';
+  document.getElementById('new-cat-color').value = '#6366f1';
+  debugLog('Nueva categoría creada: ' + name, 'info');
+}
+
+function deleteCustomCat(name) {
+  if (!confirm('¿Eliminar la categoría "' + name + '"? Las transacciones con esta categoría quedarán como "Otros".')) return;
+  delete customCats[name];
+  // Re-categorize transactions that used this cat
+  for (const month of Object.values(state.months)) {
+    month.transactions.forEach(t => {
+      if (t.categoria === name) t.categoria = categorize(t.descripcion);
+    });
+  }
+  saveCatRulesToStorage();
+  saveToStorage();
+  renderCustomCatsList();
+  renderCatEditor();
+  if (Object.keys(state.months).length > 0) renderDashboard();
+  debugLog('Categoría eliminada: ' + name, 'info');
 }
 
 function saveCatRules() {
@@ -996,7 +1112,7 @@ function saveCatRules() {
 }
 
 function resetCatRules() {
-  if (!confirm('¿Restablecer todas las reglas a los valores originales?')) return;
+  if (!confirm('¿Restablecer todas las reglas a los valores originales? Las categorías personalizadas NO se eliminarán.')) return;
   catRules = [...DEFAULT_CAT_RULES];
   renderCatEditor();
 }
@@ -2511,7 +2627,7 @@ function driveProcessXLSXBuffer(buffer, filename) {
 // ─── Debug Logger ────────────────────────────────────────────────────────────
 const _debugLines = [];
 // Log version on first use
-debugLog('Dashboard Finanzas Personales · Banco de Chile · v2.4.6', 'info');
+debugLog('Dashboard Finanzas Personales · Banco de Chile · v2.4.7', 'info');
 
 function debugLog(msg, level = 'default') {
   const ts = new Date().toLocaleTimeString('es-CL', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
