@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Dashboard Finanzas Personales · Banco de Chile
-  Versión : v2.4.5
+  Versión : v2.4.6
   Fecha   : Marzo 2026
   Repo    : https://github.com/miguelulloa-web/PF.github.io
 -->
@@ -316,6 +316,27 @@
   tbody tr:hover { background:rgba(255,255,255,0.02); }
   td { padding:11px 12px; font-size:13px; color:var(--text); }
   .cat-badge { display:inline-block; padding:3px 10px; border-radius:100px; font-size:11px; font-weight:500; white-space:nowrap; }
+  .cat-badge-btn { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:100px; font-size:11px; font-weight:500; white-space:nowrap; cursor:pointer; border:none; font-family:inherit; transition:all 0.15s; }
+  .cat-badge-btn:hover { filter:brightness(1.3); transform:scale(1.04); }
+  .cat-badge-btn::after { content:'▾'; font-size:9px; opacity:0.6; }
+  /* Inline category dropdown */
+  .cat-inline-wrap { position:relative; display:inline-block; }
+  .cat-inline-dropdown { display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:999;
+    background:#1a2234; border:1px solid #1f2e47; border-radius:10px; padding:4px;
+    min-width:210px; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
+  .cat-inline-dropdown.open { display:block; }
+  .cat-inline-opt { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:7px;
+    font-size:12px; cursor:pointer; color:var(--text); transition:background 0.1s; white-space:nowrap; }
+  .cat-inline-opt:hover { background:rgba(255,255,255,0.07); }
+  .cat-inline-opt.active { background:rgba(59,130,246,0.15); }
+  .cat-inline-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .cat-inline-confirm { display:flex; gap:6px; padding:6px 4px 2px; border-top:1px solid #1f2e47; margin-top:2px; }
+  .cat-inline-confirm button { flex:1; padding:5px; border-radius:6px; font-size:11px; font-weight:600;
+    cursor:pointer; border:none; font-family:inherit; transition:all 0.15s; }
+  .cat-btn-save { background:var(--accent); color:#fff; }
+  .cat-btn-save:hover { background:#2563eb; }
+  .cat-btn-cancel { background:rgba(255,255,255,0.06); color:var(--muted); }
+  .cat-btn-cancel:hover { background:rgba(255,255,255,0.1); }
   .amount-neg { color:var(--red); font-weight:600; font-variant-numeric:tabular-nums; }
   .amount-pos { color:var(--green); font-weight:600; font-variant-numeric:tabular-nums; }
 
@@ -462,7 +483,7 @@
   <!-- Version Banner -->
   <div class="version-banner">
     <div class="v-left">
-      <span class="version-tag">v2.4.5</span>
+      <span class="version-tag">v2.4.6</span>
       <span class="version-date">Marzo 2026</span>
       <span class="version-desc">Sincronización Drive · Soporte PDF/xlsx · Categorías · Comparativa multi-mes</span>
     </div>
@@ -477,11 +498,11 @@
       <h2>📋 Historial de Versiones</h2>
 
       <div class="changelog-entry">
-        <div class="cv"><span class="vtag">v2.4.5</span><span class="vdate">Marzo 2026</span></div>
+        <div class="cv"><span class="vtag">v2.4.6</span><span class="vdate">Marzo 2026</span></div>
         <ul>
           <li>Fix: botón "Ver Dashboard →" aparece tras sincronización Drive exitosa</li>
           <li>Fix: modal Drive se cierra automáticamente (4s) si no hay errores</li>
-          <li>Fix: versión en footer actualizada a v2.4.5</li>
+          <li>Fix: versión en footer actualizada a v2.4.6</li>
         </ul>
       </div>
       <div class="changelog-entry">
@@ -702,14 +723,14 @@
 
   <footer>
     <div>Todos los datos se procesan localmente en tu navegador. Ningún dato es enviado a servidores externos.</div>
-    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.5 · Marzo 2026</div>
+    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.6 · Marzo 2026</div>
   </footer>
 
   </div> <!-- /dashboard -->
 
 <script>
 // ─── Constants ─────────────────────────────────────────────────────────────
-const APP_VERSION = 'v2.4.5';
+const APP_VERSION = 'v2.4.6';
 const APP_DATE = 'Marzo 2026';
 const STORAGE_KEY = 'finanzas_bch_data';
 const STORAGE_CATS_KEY = 'finanzas_bch_cats';
@@ -1674,6 +1695,98 @@ function filterTableAll() {
   renderTable(true);
 }
 
+
+// ─── Inline category reclassification ──────────────────────────────────────
+
+function buildCatCell(t) {
+  const cfg = getCatConfig(t.categoria);
+  const id  = 'cd_' + Math.random().toString(36).slice(2);
+  const allCats = Object.keys(CAT_CONFIG);
+  const opts = allCats.map(c => {
+    const cc = getCatConfig(c);
+    return `<div class="cat-inline-opt${c === t.categoria ? ' active' : ''}"
+      onclick="selectCatOpt('${id}','${c.replace(/'/g,"\\'")}',this)">
+      <span class="cat-inline-dot" style="background:${cc.color}"></span>
+      ${cc.emoji} ${c}
+    </div>`;
+  }).join('');
+
+  return `<div class="cat-inline-wrap">
+    <button class="cat-badge-btn" id="btn_${id}"
+      style="background:${cfg.color}22;color:${cfg.color};border:1px solid ${cfg.color}44"
+      onclick="toggleCatDropdown('${id}',event)">
+      ${cfg.emoji} ${t.categoria}
+    </button>
+    <div class="cat-inline-dropdown" id="${id}" data-desc="${t.descripcion.replace(/"/g,'&quot;')}">
+      <div style="max-height:220px;overflow-y:auto">${opts}</div>
+      <div class="cat-inline-confirm">
+        <button class="cat-btn-save" onclick="confirmCatChange('${id}')">✓ Guardar</button>
+        <button class="cat-btn-cancel" onclick="closeCatDropdown('${id}')">Cancelar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleCatDropdown(id, e) {
+  e.stopPropagation();
+  // Close any other open dropdown first
+  document.querySelectorAll('.cat-inline-dropdown.open').forEach(d => {
+    if (d.id !== id) d.classList.remove('open');
+  });
+  document.getElementById(id).classList.toggle('open');
+}
+
+function closeCatDropdown(id) {
+  const dd = document.getElementById(id);
+  if (dd) dd.classList.remove('open');
+}
+
+function selectCatOpt(id, cat, el) {
+  const dd = document.getElementById(id);
+  dd.querySelectorAll('.cat-inline-opt').forEach(o => o.classList.remove('active'));
+  el.classList.add('active');
+  dd.dataset.selected = cat;
+}
+
+function confirmCatChange(id) {
+  const dd = document.getElementById(id);
+  const newCat  = dd.dataset.selected;
+  const desc    = dd.dataset.desc;
+  if (!newCat || !desc) { closeCatDropdown(id); return; }
+
+  reclassifyTransaction(desc, newCat);
+  closeCatDropdown(id);
+}
+
+function reclassifyTransaction(desc, newCat) {
+  // 1. Prepend rule so it takes priority over existing rules
+  const existing = catRules.findIndex(r => r.text.toUpperCase() === desc.toUpperCase());
+  const group = getCatGroup(newCat);
+  if (existing >= 0) {
+    catRules[existing] = { text: desc, cat: newCat, group };
+  } else {
+    catRules.unshift({ text: desc, cat: newCat, group });
+  }
+  saveCatRulesToStorage();
+
+  // 2. Re-categorize ALL transactions across ALL months
+  for (const monthData of Object.values(state.months)) {
+    for (const t of monthData.transactions) {
+      t.categoria = categorize(t.descripcion);
+    }
+  }
+  saveToStorage();
+
+  // 3. Re-render
+  debugLog('Reclasificado "' + desc + '" → ' + newCat, 'info');
+  renderDashboard();
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', () => {
+  document.querySelectorAll('.cat-inline-dropdown.open').forEach(d => d.classList.remove('open'));
+});
+
 function renderTable(showMonth = false) {
   const start = (state.page - 1) * state.perPage;
   const page = state.filtered.slice(start, start + state.perPage);
@@ -1686,7 +1799,7 @@ function renderTable(showMonth = false) {
       <td style="color:var(--muted);font-variant-numeric:tabular-nums">${t.fecha}</td>
       ${showMonth ? `<td><span style="font-size:11px;color:var(--accent2)">${t.monthLabel||''}</span></td>` : ''}
       <td>${t.descripcion}</td>
-      <td><span class="cat-badge" style="background:${cfg.color}22;color:${cfg.color};border:1px solid ${cfg.color}44">${cfg.emoji} ${t.categoria}</span></td>
+      <td>${buildCatCell(t)}</td>
       <td style="text-align:right">${t.cargo ? '<span class="amount-neg">-'+fmt(t.cargo)+'</span>' : '<span style="color:var(--muted)">—</span>'}</td>
       <td style="text-align:right">${t.abono ? '<span class="amount-pos">+'+fmt(t.abono)+'</span>' : '<span style="color:var(--muted)">—</span>'}</td>
     `;
@@ -2367,7 +2480,7 @@ function driveProcessXLSXBuffer(buffer, filename) {
 // ─── Debug Logger ────────────────────────────────────────────────────────────
 const _debugLines = [];
 // Log version on first use
-debugLog('Dashboard Finanzas Personales · Banco de Chile · v2.4.5', 'info');
+debugLog('Dashboard Finanzas Personales · Banco de Chile · v2.4.6', 'info');
 
 function debugLog(msg, level = 'default') {
   const ts = new Date().toLocaleTimeString('es-CL', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
