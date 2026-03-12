@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!--
+  Dashboard Finanzas Personales · Banco de Chile
+  Versión : v2.4.4
+  Fecha   : Marzo 2026
+  Repo    : https://github.com/miguelulloa-web/PF.github.io
+-->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -456,7 +462,7 @@
   <!-- Version Banner -->
   <div class="version-banner">
     <div class="v-left">
-      <span class="version-tag">v2.4.3</span>
+      <span class="version-tag">v2.4.4</span>
       <span class="version-date">Marzo 2026</span>
       <span class="version-desc">Sincronización Drive · Soporte PDF/xlsx · Categorías · Comparativa multi-mes</span>
     </div>
@@ -471,11 +477,11 @@
       <h2>📋 Historial de Versiones</h2>
 
       <div class="changelog-entry">
-        <div class="cv"><span class="vtag">v2.4.3</span><span class="vdate">Marzo 2026</span></div>
+        <div class="cv"><span class="vtag">v2.4.4</span><span class="vdate">Marzo 2026</span></div>
         <ul>
           <li>Fix: botón "Ver Dashboard →" aparece tras sincronización Drive exitosa</li>
           <li>Fix: modal Drive se cierra automáticamente (4s) si no hay errores</li>
-          <li>Fix: versión en footer actualizada a v2.4.3</li>
+          <li>Fix: versión en footer actualizada a v2.4.4</li>
         </ul>
       </div>
       <div class="changelog-entry">
@@ -696,14 +702,14 @@
 
   <footer>
     <div>Todos los datos se procesan localmente en tu navegador. Ningún dato es enviado a servidores externos.</div>
-    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.3 · Marzo 2026</div>
+    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.4 · Marzo 2026</div>
   </footer>
 
   </div> <!-- /dashboard -->
 
 <script>
 // ─── Constants ─────────────────────────────────────────────────────────────
-const APP_VERSION = 'v2.4.3';
+const APP_VERSION = 'v2.4.4';
 const APP_DATE = 'Marzo 2026';
 const STORAGE_KEY = 'finanzas_bch_data';
 const STORAGE_CATS_KEY = 'finanzas_bch_cats';
@@ -1115,9 +1121,19 @@ function processFile(file) {
 
       debugLog('Parsing exitoso: ' + transactions.length + ' transacciones, mes: ' + monthLabel, 'info');
       hideLoadingToast();
-      showDashboardContent();
-      showDebugBtn();
-      renderDashboard();
+      try {
+        showDashboardContent();
+        debugLog('showDashboardContent OK', 'info');
+        showDebugBtn();
+        renderDashboard();
+        debugLog('renderDashboard OK', 'info');
+      } catch(renderErr) {
+        debugLog('ERROR en render: ' + renderErr.message, 'error');
+        debugLog('Stack render: ' + (renderErr.stack || 'N/A'), 'error');
+        showDebugBtn();
+        toggleDebug();
+        showError('Error al renderizar dashboard: ' + renderErr.message);
+      }
 
     } catch(err) {
       hideLoadingToast();
@@ -1271,9 +1287,19 @@ async function processPDFFile(file) {
     saveToStorage();
 
     hideLoadingToast();
-    showDashboardContent();
-    showDebugBtn();
-    renderDashboard();
+    try {
+      showDashboardContent();
+      debugLog('showDashboardContent OK (PDF)', 'info');
+      showDebugBtn();
+      renderDashboard();
+      debugLog('renderDashboard OK (PDF)', 'info');
+    } catch(renderErr) {
+      debugLog('ERROR en render (PDF): ' + renderErr.message, 'error');
+      debugLog('Stack render: ' + (renderErr.stack || 'N/A'), 'error');
+      showDebugBtn();
+      toggleDebug();
+      showError('Error al renderizar dashboard: ' + renderErr.message);
+    }
 
   } catch(err) {
     hideLoadingToast();
@@ -2393,9 +2419,15 @@ function copyDebugLog() {
 
   const restored = loadFromStorage();
   if (restored) {
-    showDashboardContent();
-    renderDashboard();
-    debugLog('Sesión restaurada: ' + Object.keys(state.months).join(', '), 'info');
+    try {
+      showDashboardContent();
+      renderDashboard();
+      debugLog('Sesión restaurada OK: ' + Object.keys(state.months).join(', '), 'info');
+    } catch(renderErr) {
+      debugLog('ERROR render en init: ' + renderErr.message, 'error');
+      debugLog('Stack: ' + (renderErr.stack || 'N/A'), 'error');
+      showDebugBtn();
+    }
   } else {
     showEmptyState();
   }
