@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Dashboard Finanzas Personales · Banco de Chile
-  Versión : v2.4.8
+  Versión : v2.4.9
   Fecha   : Marzo 2026
   Repo    : https://github.com/miguelulloa-web/PF.github.io
 -->
@@ -523,7 +523,7 @@
   <!-- Version Banner -->
   <div class="version-banner">
     <div class="v-left">
-      <span class="version-tag">v2.4.8</span>
+      <span class="version-tag">v2.4.9</span>
       <span class="version-date">Marzo 2026</span>
       <span class="version-desc">Sincronización Drive · Soporte PDF/xlsx · Categorías · Comparativa multi-mes</span>
     </div>
@@ -538,11 +538,11 @@
       <h2>📋 Historial de Versiones</h2>
 
       <div class="changelog-entry">
-        <div class="cv"><span class="vtag">v2.4.8</span><span class="vdate">Marzo 2026</span></div>
+        <div class="cv"><span class="vtag">v2.4.9</span><span class="vdate">Marzo 2026</span></div>
         <ul>
           <li>Fix: botón "Ver Dashboard →" aparece tras sincronización Drive exitosa</li>
           <li>Fix: modal Drive se cierra automáticamente (4s) si no hay errores</li>
-          <li>Fix: versión en footer actualizada a v2.4.8</li>
+          <li>Fix: versión en footer actualizada a v2.4.9</li>
         </ul>
       </div>
       <div class="changelog-entry">
@@ -840,14 +840,14 @@
 
   <footer>
     <div>Todos los datos se procesan localmente en tu navegador. Ningún dato es enviado a servidores externos.</div>
-    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.8 · Marzo 2026</div>
+    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.9 · Marzo 2026</div>
   </footer>
 
   </div> <!-- /dashboard -->
 
 <script>
 // ─── Constants ─────────────────────────────────────────────────────────────
-const APP_VERSION = 'v2.4.8';
+const APP_VERSION = 'v2.4.9';
 const APP_DATE = 'Marzo 2026';
 const STORAGE_KEY = 'finanzas_bch_data';
 const STORAGE_CATS_KEY        = 'finanzas_bch_cats';
@@ -1866,7 +1866,7 @@ function destroyMultiCharts() {
 
 // ─── Table (single month) ───────────────────────────────────────────────────
 function renderFilters(txs) {
-  const cats = ['Todos', ...Object.keys(CAT_CONFIG).filter(c => txs.some(t => t.categoria === c))];
+  const cats = ['Todos', ...Object.keys(getAllCats()).filter(c => txs.some(t => t.categoria === c))];
   const row = document.getElementById('filter-row');
   row.innerHTML = '';
   cats.forEach(c => {
@@ -1893,7 +1893,7 @@ function filterTable() {
 // ─── Table (all months) ─────────────────────────────────────────────────────
 function renderFiltersAll() {
   const allTxs = Object.values(state.months).flatMap(m => m.transactions);
-  const cats = ['Todos', ...Object.keys(CAT_CONFIG).filter(c => allTxs.some(t => t.categoria === c))];
+  const cats = ['Todos', ...Object.keys(getAllCats()).filter(c => allTxs.some(t => t.categoria === c))];
   const row = document.getElementById('filter-row');
   row.innerHTML = '';
   cats.forEach(c => {
@@ -1927,11 +1927,11 @@ function filterTableAll() {
 function buildCatCell(t) {
   const cfg = getCatConfig(t.categoria);
   const id  = 'cd_' + Math.random().toString(36).slice(2);
-  const allCats = Object.keys(CAT_CONFIG);
+  const allCats = Object.keys(getAllCats());
   const opts = allCats.map(c => {
     const cc = getCatConfig(c);
     return `<div class="cat-inline-opt${c === t.categoria ? ' active' : ''}"
-      onclick="selectCatOpt('${id}','${c.replace(/'/g,"\\'")}',this)">
+      onclick="event.stopPropagation();selectCatOpt('${id}','${c.replace(/'/g,"\\'")}',this)">
       <span class="cat-inline-dot" style="background:${cc.color}"></span>
       ${cc.emoji} ${c}
     </div>`;
@@ -1943,7 +1943,7 @@ function buildCatCell(t) {
       onclick="toggleCatDropdown('${id}',event)">
       ${cfg.emoji} ${t.categoria}
     </button>
-    <div class="cat-inline-dropdown" id="${id}" data-desc="${t.descripcion.replace(/"/g,'&quot;')}">
+    <div class="cat-inline-dropdown" id="${id}" data-desc="${t.descripcion.replace(/"/g,'&quot;')}" onclick="event.stopPropagation()">
       <div style="max-height:220px;overflow-y:auto">${opts}</div>
       <div class="cat-inline-confirm">
         <button class="cat-btn-save" onclick="confirmCatChange('${id}')">✓ Guardar</button>
@@ -2019,9 +2019,11 @@ function reclassifyTransaction(desc, newCat) {
   renderDashboard();
 }
 
-// Close dropdowns when clicking outside
-document.addEventListener('click', () => {
-  document.querySelectorAll('.cat-inline-dropdown.open').forEach(d => d.classList.remove('open'));
+// Close dropdowns when clicking outside (not inside the dropdown itself)
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.cat-inline-wrap')) {
+    document.querySelectorAll('.cat-inline-dropdown.open').forEach(d => d.classList.remove('open'));
+  }
 });
 
 function renderTable(showMonth = false) {
@@ -2717,7 +2719,7 @@ function driveProcessXLSXBuffer(buffer, filename) {
 // ─── Debug Logger ────────────────────────────────────────────────────────────
 const _debugLines = [];
 // Log version on first use
-debugLog('Dashboard Finanzas Personales · Banco de Chile · v2.4.8', 'info');
+debugLog('Dashboard Finanzas Personales · Banco de Chile · v2.4.9', 'info');
 
 function debugLog(msg, level = 'default') {
   const ts = new Date().toLocaleTimeString('es-CL', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
