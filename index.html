@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Dashboard Finanzas Personales · Banco de Chile
-  Versión : v2.4.7
+  Versión : v2.4.8
   Fecha   : Marzo 2026
   Repo    : https://github.com/miguelulloa-web/PF.github.io
 -->
@@ -210,6 +210,8 @@
     transition: all 0.2s;
   }
   .btn-reset-cats:hover { border-color: var(--red); color: #f87171; }
+  .btn-new-cat { display:inline-flex; align-items:center; gap:6px; background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.35); color:#818cf8; padding:6px 12px; border-radius:8px; font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; }
+  .btn-new-cat:hover { background:rgba(99,102,241,0.22); transform:translateY(-1px); }
   /* Custom categories section */
   .custom-cats-section { margin-top:20px; padding-top:16px; border-top:1px solid var(--border); }
   .custom-cats-section h3 { font-size:13px; font-weight:600; color:var(--text); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
@@ -521,7 +523,7 @@
   <!-- Version Banner -->
   <div class="version-banner">
     <div class="v-left">
-      <span class="version-tag">v2.4.7</span>
+      <span class="version-tag">v2.4.8</span>
       <span class="version-date">Marzo 2026</span>
       <span class="version-desc">Sincronización Drive · Soporte PDF/xlsx · Categorías · Comparativa multi-mes</span>
     </div>
@@ -536,11 +538,11 @@
       <h2>📋 Historial de Versiones</h2>
 
       <div class="changelog-entry">
-        <div class="cv"><span class="vtag">v2.4.7</span><span class="vdate">Marzo 2026</span></div>
+        <div class="cv"><span class="vtag">v2.4.8</span><span class="vdate">Marzo 2026</span></div>
         <ul>
           <li>Fix: botón "Ver Dashboard →" aparece tras sincronización Drive exitosa</li>
           <li>Fix: modal Drive se cierra automáticamente (4s) si no hay errores</li>
-          <li>Fix: versión en footer actualizada a v2.4.7</li>
+          <li>Fix: versión en footer actualizada a v2.4.8</li>
         </ul>
       </div>
       <div class="changelog-entry">
@@ -620,27 +622,81 @@
         <button class="btn-reset-cats" onclick="resetCatRules()">↺ Restablecer defaults</button>
       </div>
 
-      <!-- Custom categories -->
+      <!-- Custom categories list + button -->
       <div class="custom-cats-section">
-        <h3>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-          Mis categorías personalizadas
-        </h3>
-        <div class="custom-cats-list" id="custom-cats-list"></div>
-        <div class="new-cat-form" id="new-cat-form">
-          <input type="text" id="new-cat-name" placeholder="Nombre de categoría" maxlength="40">
-          <input type="text" id="new-cat-emoji" class="new-cat-emoji" placeholder="🏷️" maxlength="2">
-          <input type="color" id="new-cat-color" class="new-cat-color" value="#6366f1">
-          <select id="new-cat-group">
-            <option value="egreso">Egreso</option>
-            <option value="ingreso">Ingreso</option>
-            <option value="neutro">Neutro</option>
-          </select>
-          <button class="btn-add-custom-cat" onclick="addCustomCat()">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <h3 style="margin:0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            Mis categorías personalizadas
+          </h3>
+          <button class="btn-new-cat" onclick="openNewCatModal()">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Agregar
+            Nueva categoría
           </button>
         </div>
+        <div class="custom-cats-list" id="custom-cats-list"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Nueva Categoría Modal -->
+  <div class="modal-overlay" id="new-cat-modal" onclick="if(event.target===this)closeNewCatModal()">
+    <div class="modal" style="max-width:420px">
+      <h2>✨ Nueva Categoría</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5">
+        Crea una categoría personalizada. Estará disponible en las reglas y en la tabla de transacciones.
+      </p>
+
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:600">Nombre</label>
+          <input id="nc-name" type="text" placeholder="Ej: Servicios Básicos" maxlength="40"
+            style="width:100%;margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:9px 12px;outline:none;box-sizing:border-box"
+            oninput="updateNewCatPreview()">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:600">Emoji</label>
+            <input id="nc-emoji" type="text" placeholder="🏷️" maxlength="2" value="🏷️"
+              style="width:100%;margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:18px;padding:7px 12px;outline:none;text-align:center;box-sizing:border-box"
+              oninput="updateNewCatPreview()">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:600">Color</label>
+            <input id="nc-color" type="color" value="#6366f1"
+              style="width:100%;margin-top:6px;height:38px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;padding:3px 6px;box-sizing:border-box"
+              oninput="updateNewCatPreview()">
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:600">Tipo de movimiento</label>
+          <select id="nc-group"
+            style="width:100%;margin-top:6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:9px 12px;outline:none;box-sizing:border-box">
+            <option value="egreso">💸 Egreso</option>
+            <option value="ingreso">💰 Ingreso</option>
+            <option value="neutro">↔️ Neutro</option>
+          </select>
+        </div>
+
+        <!-- Preview -->
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.6px;font-weight:600">Vista previa</div>
+          <span id="nc-preview" class="cat-badge" style="background:#6366f122;color:#6366f1;border:1px solid #6366f144;font-size:13px;padding:5px 14px">🏷️ Nueva categoría</span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:20px">
+        <button onclick="saveNewCat()"
+          style="flex:1;padding:11px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s">
+          ✓ Guardar categoría
+        </button>
+        <button onclick="closeNewCatModal()"
+          style="padding:11px 18px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all 0.2s">
+          Cancelar
+        </button>
       </div>
     </div>
   </div>
@@ -784,14 +840,14 @@
 
   <footer>
     <div>Todos los datos se procesan localmente en tu navegador. Ningún dato es enviado a servidores externos.</div>
-    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.7 · Marzo 2026</div>
+    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.8 · Marzo 2026</div>
   </footer>
 
   </div> <!-- /dashboard -->
 
 <script>
 // ─── Constants ─────────────────────────────────────────────────────────────
-const APP_VERSION = 'v2.4.7';
+const APP_VERSION = 'v2.4.8';
 const APP_DATE = 'Marzo 2026';
 const STORAGE_KEY = 'finanzas_bch_data';
 const STORAGE_CATS_KEY        = 'finanzas_bch_cats';
@@ -1041,10 +1097,11 @@ function deleteRule(i) {
 
 function renderCustomCatsList() {
   const list = document.getElementById('custom-cats-list');
+  if (!list) return;
   list.innerHTML = '';
   const entries = Object.entries(customCats);
   if (entries.length === 0) {
-    list.innerHTML = '<p style="font-size:12px;color:var(--muted);padding:4px 0">No hay categorías personalizadas aún.</p>';
+    list.innerHTML = '<p style="font-size:12px;color:var(--muted);padding:4px 2px">No hay categorías personalizadas aún.</p>';
     return;
   }
   entries.forEach(([name, cfg]) => {
@@ -1054,47 +1111,80 @@ function renderCustomCatsList() {
       <div class="custom-cat-preview" style="background:${cfg.color}22;border:1px solid ${cfg.color}44">${cfg.emoji}</div>
       <span class="custom-cat-name">${name}</span>
       <span class="custom-cat-group">${cfg.group}</span>
-      <button class="btn-del-custom-cat" onclick="deleteCustomCat('${name.replace(/'/g,"\'")}')">✕ Eliminar</button>
+      <button class="btn-del-custom-cat" onclick="deleteCustomCat('${name.replace(/'/g,"\\'")}')">✕ Eliminar</button>
     `;
     list.appendChild(row);
   });
 }
 
-function addCustomCat() {
-  const name  = document.getElementById('new-cat-name').value.trim();
-  const emoji = document.getElementById('new-cat-emoji').value.trim() || '🏷️';
-  const color = document.getElementById('new-cat-color').value;
-  const group = document.getElementById('new-cat-group').value;
+function openNewCatModal() {
+  // Reset fields
+  document.getElementById('nc-name').value = '';
+  document.getElementById('nc-emoji').value = '🏷️';
+  document.getElementById('nc-color').value = '#6366f1';
+  document.getElementById('nc-group').value = 'egreso';
+  updateNewCatPreview();
+  document.getElementById('new-cat-modal').classList.add('open');
+}
+
+function closeNewCatModal() {
+  document.getElementById('new-cat-modal').classList.remove('open');
+}
+
+function updateNewCatPreview() {
+  const name  = document.getElementById('nc-name').value.trim() || 'Nueva categoría';
+  const emoji = document.getElementById('nc-emoji').value.trim() || '🏷️';
+  const color = document.getElementById('nc-color').value;
+  const prev  = document.getElementById('nc-preview');
+  prev.textContent = emoji + ' ' + name;
+  prev.style.background = color + '22';
+  prev.style.color       = color;
+  prev.style.borderColor = color + '44';
+}
+
+function saveNewCat() {
+  const name  = document.getElementById('nc-name').value.trim();
+  const emoji = document.getElementById('nc-emoji').value.trim() || '🏷️';
+  const color = document.getElementById('nc-color').value;
+  const group = document.getElementById('nc-group').value;
 
   if (!name) { showError('Ingresa un nombre para la categoría.'); return; }
   if (getAllCats()[name]) { showError('Ya existe una categoría con ese nombre.'); return; }
 
   customCats[name] = { color, emoji, group };
   saveCatRulesToStorage();
-  renderCustomCatsList();
-  renderCatEditor(); // refresh selects to include new cat
 
-  // Reset form
-  document.getElementById('new-cat-name').value = '';
-  document.getElementById('new-cat-emoji').value = '';
-  document.getElementById('new-cat-color').value = '#6366f1';
+  // Recategorize all transactions (in case any rule now matches to new cat)
+  for (const month of Object.values(state.months)) {
+    month.transactions.forEach(t => { t.categoria = categorize(t.descripcion); });
+  }
+  if (Object.keys(state.months).length > 0) saveToStorage();
+
   debugLog('Nueva categoría creada: ' + name, 'info');
+  closeNewCatModal();
+
+  // Refresh cat editor if open
+  renderCustomCatsList();
+  renderCatEditor();
+
+  if (Object.keys(state.months).length > 0) renderDashboard();
 }
 
 function deleteCustomCat(name) {
   if (!confirm('¿Eliminar la categoría "' + name + '"? Las transacciones con esta categoría quedarán como "Otros".')) return;
   delete customCats[name];
-  // Re-categorize transactions that used this cat
+  // Remove any rules pointing to this cat
+  catRules = catRules.filter(r => r.cat !== name);
+  // Re-categorize
   for (const month of Object.values(state.months)) {
     month.transactions.forEach(t => {
       if (t.categoria === name) t.categoria = categorize(t.descripcion);
     });
   }
   saveCatRulesToStorage();
-  saveToStorage();
+  if (Object.keys(state.months).length > 0) { saveToStorage(); renderDashboard(); }
   renderCustomCatsList();
   renderCatEditor();
-  if (Object.keys(state.months).length > 0) renderDashboard();
   debugLog('Categoría eliminada: ' + name, 'info');
 }
 
@@ -2627,7 +2717,7 @@ function driveProcessXLSXBuffer(buffer, filename) {
 // ─── Debug Logger ────────────────────────────────────────────────────────────
 const _debugLines = [];
 // Log version on first use
-debugLog('Dashboard Finanzas Personales · Banco de Chile · v2.4.7', 'info');
+debugLog('Dashboard Finanzas Personales · Banco de Chile · v2.4.8', 'info');
 
 function debugLog(msg, level = 'default') {
   const ts = new Date().toLocaleTimeString('es-CL', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
