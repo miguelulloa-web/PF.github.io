@@ -361,6 +361,20 @@
   footer { text-align:center; padding:32px 0 16px; color:var(--muted); font-size:12px; border-top:1px solid var(--border); margin-top:40px; }
   .footer-version { margin-top:8px; font-size:11px; color:var(--border); letter-spacing:0.5px; }
 
+  @media(max-width:768px) {
+    /* Header: logo arriba, botones abajo */
+    header { flex-direction:column; align-items:flex-start; gap:12px; margin-bottom:24px; }
+    .header-actions { width:100%; flex-wrap:wrap; gap:8px; }
+    .btn-add-month, .btn-cats, .btn-pdf, .btn-drive { font-size:12px; padding:7px 12px; }
+    /* Tabla: ocultar canal, compactar */
+    .table-card { padding:16px 10px; }
+    table th, table td { font-size:12px; padding:8px 6px; }
+    /* Dropdown categoría: anclado a la izquierda siempre */
+    .cat-inline-dropdown { left:auto; right:0; min-width:190px; }
+    /* KPIs: 2 columnas */
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+  }
+
   @media(max-width:600px) {
     .wrap { padding:20px 14px; }
     .logo-area h1 { font-size:22px; }
@@ -368,6 +382,12 @@
     .kpi-value { font-size:22px; }
     .version-banner { flex-direction:column; align-items:flex-start; }
     .cat-rule-row { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; }
+    /* En mobile muy pequeño ocultar texto de algunos botones */
+    .btn-pdf span, .btn-cats span { display:none; }
+    /* Dropdown que no se salga de pantalla */
+    .cat-inline-dropdown { right:0; left:auto; min-width:180px; }
+    /* KPIs: 1 columna */
+    .kpi-grid { grid-template-columns: 1fr; }
   }
 
   /* ── Debug Panel ─────────────────────────────────────────────────────────── */
@@ -1733,7 +1753,18 @@ function toggleCatDropdown(id, e) {
   document.querySelectorAll('.cat-inline-dropdown.open').forEach(d => {
     if (d.id !== id) d.classList.remove('open');
   });
-  document.getElementById(id).classList.toggle('open');
+  const dd = document.getElementById(id);
+  dd.classList.toggle('open');
+  // Reposition if overflows viewport right edge
+  if (dd.classList.contains('open')) {
+    dd.style.left = '';
+    dd.style.right = '';
+    const rect = dd.getBoundingClientRect();
+    if (rect.right > window.innerWidth - 8) {
+      dd.style.left = 'auto';
+      dd.style.right = '0';
+    }
+  }
 }
 
 function closeCatDropdown(id) {
