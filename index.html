@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Dashboard Finanzas Personales · Banco de Chile
-  Versión : v2.4.4
+  Versión : v2.4.5
   Fecha   : Marzo 2026
   Repo    : https://github.com/miguelulloa-web/PF.github.io
 -->
@@ -265,7 +265,7 @@
   @keyframes spin { to { transform:rotate(360deg); } }
 
   /* Dashboard */
-  #dashboard { display:none; }
+  #dashboard { display:block; }
 
   /* Month selector */
   .month-tabs { display:flex; gap:8px; margin-bottom:28px; flex-wrap:wrap; align-items:center; }
@@ -462,7 +462,7 @@
   <!-- Version Banner -->
   <div class="version-banner">
     <div class="v-left">
-      <span class="version-tag">v2.4.4</span>
+      <span class="version-tag">v2.4.5</span>
       <span class="version-date">Marzo 2026</span>
       <span class="version-desc">Sincronización Drive · Soporte PDF/xlsx · Categorías · Comparativa multi-mes</span>
     </div>
@@ -477,11 +477,11 @@
       <h2>📋 Historial de Versiones</h2>
 
       <div class="changelog-entry">
-        <div class="cv"><span class="vtag">v2.4.4</span><span class="vdate">Marzo 2026</span></div>
+        <div class="cv"><span class="vtag">v2.4.5</span><span class="vdate">Marzo 2026</span></div>
         <ul>
           <li>Fix: botón "Ver Dashboard →" aparece tras sincronización Drive exitosa</li>
           <li>Fix: modal Drive se cierra automáticamente (4s) si no hay errores</li>
-          <li>Fix: versión en footer actualizada a v2.4.4</li>
+          <li>Fix: versión en footer actualizada a v2.4.5</li>
         </ul>
       </div>
       <div class="changelog-entry">
@@ -702,14 +702,14 @@
 
   <footer>
     <div>Todos los datos se procesan localmente en tu navegador. Ningún dato es enviado a servidores externos.</div>
-    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.4 · Marzo 2026</div>
+    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.5 · Marzo 2026</div>
   </footer>
 
   </div> <!-- /dashboard -->
 
 <script>
 // ─── Constants ─────────────────────────────────────────────────────────────
-const APP_VERSION = 'v2.4.4';
+const APP_VERSION = 'v2.4.5';
 const APP_DATE = 'Marzo 2026';
 const STORAGE_KEY = 'finanzas_bch_data';
 const STORAGE_CATS_KEY = 'finanzas_bch_cats';
@@ -2366,6 +2366,8 @@ function driveProcessXLSXBuffer(buffer, filename) {
 // ─── Init ───────────────────────────────────────────────────────────────────
 // ─── Debug Logger ────────────────────────────────────────────────────────────
 const _debugLines = [];
+// Log version on first use
+debugLog('Dashboard Finanzas Personales · Banco de Chile · v2.4.5', 'info');
 
 function debugLog(msg, level = 'default') {
   const ts = new Date().toLocaleTimeString('es-CL', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
