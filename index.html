@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Dashboard Finanzas Personales · Banco de Chile
-  Versión : v2.4.9
+  Versión : v2.5.0
   Fecha   : Marzo 2026
   Repo    : https://github.com/miguelulloa-web/PF.github.io
 -->
@@ -365,6 +365,22 @@
 
   /* Pagination */
   .pagination { display:flex; align-items:center; gap:8px; margin-top:16px; justify-content:flex-end; }
+  #table-total {
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  #table-total .total-label { color: var(--muted); }
+  #table-total .total-amounts { display: flex; gap: 24px; }
+  #table-total .total-cargo  { color: #ef4444; }
+  #table-total .total-abono  { color: #10b981; }
   .page-btn { padding:6px 12px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--muted); font-family:'DM Sans',sans-serif; font-size:12px; cursor:pointer; transition:all 0.15s; }
   .page-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--text); }
   .page-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
@@ -523,7 +539,7 @@
   <!-- Version Banner -->
   <div class="version-banner">
     <div class="v-left">
-      <span class="version-tag">v2.4.9</span>
+      <span class="version-tag">v2.5.0</span>
       <span class="version-date">Marzo 2026</span>
       <span class="version-desc">Sincronización Drive · Soporte PDF/xlsx · Categorías · Comparativa multi-mes</span>
     </div>
@@ -538,11 +554,11 @@
       <h2>📋 Historial de Versiones</h2>
 
       <div class="changelog-entry">
-        <div class="cv"><span class="vtag">v2.4.9</span><span class="vdate">Marzo 2026</span></div>
+        <div class="cv"><span class="vtag">v2.5.0</span><span class="vdate">Marzo 2026</span></div>
         <ul>
           <li>Fix: botón "Ver Dashboard →" aparece tras sincronización Drive exitosa</li>
           <li>Fix: modal Drive se cierra automáticamente (4s) si no hay errores</li>
-          <li>Fix: versión en footer actualizada a v2.4.9</li>
+          <li>Fix: versión en footer actualizada a v2.5.0</li>
         </ul>
       </div>
       <div class="changelog-entry">
@@ -835,19 +851,20 @@
         </table>
       </div>
       <div class="pagination" id="pagination"></div>
+      <div id="table-total" style="display:none"></div>
     </div> <!-- /table-card -->
     </div> <!-- /dashboard-content -->
 
   <footer>
     <div>Todos los datos se procesan localmente en tu navegador. Ningún dato es enviado a servidores externos.</div>
-    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.4.9 · Marzo 2026</div>
+    <div class="footer-version">Dashboard Finanzas Personales · Banco de Chile · v2.5.0 · Marzo 2026</div>
   </footer>
 
   </div> <!-- /dashboard -->
 
 <script>
 // ─── Constants ─────────────────────────────────────────────────────────────
-const APP_VERSION = 'v2.4.9';
+const APP_VERSION = 'v2.5.0';
 const APP_DATE = 'Marzo 2026';
 const STORAGE_KEY = 'finanzas_bch_data';
 const STORAGE_CATS_KEY        = 'finanzas_bch_cats';
@@ -1882,10 +1899,18 @@ function renderFilters(txs) {
 function filterTable() {
   const { transactions } = state.months[state.activeMonth];
   const search = document.getElementById('search-input').value.toLowerCase();
+
+  // Parse month/year from label e.g. "Mar 2026" → mes=3, year=2026
+  const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const parts = state.activeMonth.split(' ');
+  const activeMes  = meses.indexOf(parts[0]);   // 1-12
+  const activeYear = parseInt(parts[1]);
+
   state.filtered = transactions.filter(t => {
-    const matchCat = state.activeFilter === 'Todos' || t.categoria === state.activeFilter;
+    const matchMes    = !activeMes || (t.mes === activeMes && t.year === activeYear);
+    const matchCat    = state.activeFilter === 'Todos' || t.categoria === state.activeFilter;
     const matchSearch = !search || t.descripcion.toLowerCase().includes(search);
-    return matchCat && matchSearch;
+    return matchMes && matchCat && matchSearch;
   });
   renderTable(false);
 }
@@ -1927,7 +1952,7 @@ function filterTableAll() {
 function buildCatCell(t) {
   const cfg = getCatConfig(t.categoria);
   const id  = 'cd_' + Math.random().toString(36).slice(2);
-  const allCats = Object.keys(getAllCats());
+  const allCats = Object.keys(getAllCats()).sort((a, b) => a.localeCompare(b, 'es'));
   const opts = allCats.map(c => {
     const cc = getCatConfig(c);
     return `<div class="cat-inline-opt${c === t.categoria ? ' active' : ''}"
@@ -2045,6 +2070,31 @@ function renderTable(showMonth = false) {
     tbody.appendChild(tr);
   });
   renderPagination();
+  renderTotalizador();
+}
+
+function renderTotalizador() {
+  const el = document.getElementById('table-total');
+  // Show totalizador only when a specific category is selected
+  if (state.activeFilter === 'Todos') {
+    el.style.display = 'none';
+    return;
+  }
+  const totalCargo = state.filtered.reduce((s, t) => s + (t.cargo || 0), 0);
+  const totalAbono = state.filtered.reduce((s, t) => s + (t.abono || 0), 0);
+  const count = state.filtered.length;
+  const cfg = getCatConfig(state.activeFilter);
+
+  el.style.display = 'flex';
+  el.innerHTML = `
+    <span class="total-label">
+      ${cfg.emoji} <strong>${state.activeFilter}</strong> · ${count} transacción${count !== 1 ? 'es' : ''}
+    </span>
+    <div class="total-amounts">
+      ${totalCargo ? `<span class="total-cargo">Total cargos: -${fmt(totalCargo)}</span>` : ''}
+      ${totalAbono ? `<span class="total-abono">Total abonos: +${fmt(totalAbono)}</span>` : ''}
+    </div>
+  `;
 }
 
 function renderPagination() {
@@ -2719,7 +2769,7 @@ function driveProcessXLSXBuffer(buffer, filename) {
 // ─── Debug Logger ────────────────────────────────────────────────────────────
 const _debugLines = [];
 // Log version on first use
-debugLog('Dashboard Finanzas Personales · Banco de Chile · v2.4.9', 'info');
+debugLog('Dashboard Finanzas Personales · Banco de Chile · v2.5.0', 'info');
 
 function debugLog(msg, level = 'default') {
   const ts = new Date().toLocaleTimeString('es-CL', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
